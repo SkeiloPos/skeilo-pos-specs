@@ -3046,6 +3046,39 @@ con un Chrome automatizado sin fondos; la vista previa real (T070) nunca se comp
 
 ---
 
+### A-99 — [DECISIÓN DE NEGOCIO — spec 091, 2026-10-01] "Consumidor final" vuelve a ser el valor por defecto del cliente en pedidos de Mesa y Para llevar creados desde la Terminal
+
+**Qué cambia**: reabre parcialmente **A-88** (spec 087). Para pedidos `DINE_IN`/`TAKEAWAY`
+creados con `channel=POS` (Terminal de mesas), `customer_name` vacío o solo espacios deja de
+rechazarse (`422 "El nombre del cliente es obligatorio."`) y se guarda como `"Consumidor final"`.
+En el frontend, el campo "Cliente" de "Nueva orden" vuelve a precargar ese texto en las pestañas
+Mesa y Para llevar (editable, seleccionado por completo al enfocarlo), deja de bloquear "Crear
+pedido" por falta de nombre en esas dos pestañas, y se vuelve a vaciar al pasar a Domicilio
+cuando seguía en el valor por defecto sin editar. **Domicilio no cambia**: sigue exigiendo nombre,
+dirección y valor del domicilio (A-88/spec 056 intactos ahí), igual que cualquier pedido
+`TAKEAWAY` por `WHATSAPP`/`API` (canales fuera de la Terminal).
+
+**Por qué cambia**: en horas pico, pedir un nombre real para una mesa o un pedido para llevar
+genérico frena la operación más de lo que aporta; identificar al cliente real solo sigue siendo
+necesario para Domicilio, donde hace falta para la entrega.
+
+**Quién tomó la decisión y cuándo**: propietario del producto, 2026-10-01
+(`specs/091-cliente-consumidor-final/spec.md`, encabezado y Contexto).
+
+**Funcionalidades afectadas**: `pos-backend` (`orders/service.py::create_order`; tests
+`test_orders_service.py` — se reescriben `test_create_order_dine_in_sin_nombre_cliente_rechaza_422`
+y `test_create_order_takeaway_sin_nombre_cliente_rechaza_422`, y se agrega una prueba nueva para
+`WHATSAPP`/`API` + `TAKEAWAY` sin nombre); `pos-heladeria`
+(`manual-order-page.component.ts`, `pos-terminal.store.ts` y sus specs — se reescribe el bloque de
+pruebas de A-88 citado en research.md). Domicilio, menú QR, Órdenes, Ventas y pedidos ya
+existentes no cambian.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Riesgo asumido**: ninguno sobre datos existentes (sin
+migración; solo rige para pedidos creados desde el despliegue en adelante, igual que A-88).
+**Tratamiento acordado**: `specs/091-cliente-consumidor-final/tasks.md`.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
