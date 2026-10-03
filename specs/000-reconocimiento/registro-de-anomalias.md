@@ -3275,41 +3275,117 @@ lado de los dos pasos (T032, `quickstart.md` §7).
 
 ---
 
-### A-104 — [DECISIÓN DE NEGOCIO — spec 093] El menú QR y la Terminal de mesas dejan de ocultar los productos marcados "Agotado"; pasan a mostrarlos atenuados y bloquear agregarlos
+### A-104 — [DECISIÓN DE NEGOCIO — spec 094] El bloque "Datos de entrega" reusa el nombre del cliente y la nota del pedido en vez de crear campos propios
 
-**Qué cambia**: `GET /menu` y `GET /menu/qr-token/{token}` (ambos resueltos por la misma función
-`_build_menu` en `app/api/v1/menu/router.py`) dejan de filtrar `Product.available.is_(True)` en la
-consulta de productos: un producto marcado "Agotado" (`available=False`) sigue devolviéndose en la
-respuesta, con un campo nuevo que lo identifica como tal, en vez de desaparecer del todo. Hoy
-desaparece sin dejar rastro tanto del menú QR del comensal como de la grilla de "Nueva orden" de la
-Terminal de mesas del personal — ambas pantallas consumen el mismo endpoint. El campo existente
-`available` de `MenuProductResponse` (que ya significa "puede pedirse dado el stock de sus opciones
-obligatorias", no lo mismo que el flag manual de la spec 093) no se toca ni cambia de semántica.
-
-**Por qué cambia**: la spec 093 le da al cajero (y al administrador) un interruptor manual "Agotado"
-para marcar que un producto no se puede vender sin tener que desactivarlo del catálogo. Si ese
-producto desaparece del menú QR y de la Terminal en cuanto se marca, el comensal y el propio cajero
-pierden visibilidad de que el producto existe y solo está temporalmente agotado. El negocio (dueño de
-la spec) pidió explícitamente lo contrario: visible pero bloqueado, nunca invisible (escenarios 5 y 6
-de la spec).
-
-**Quién y cuándo**: dueño de la spec, 2026-10-03 (criterios de aceptación de la spec 093).
-
-**Funcionalidades afectadas**: `pos-backend` (`app/api/v1/menu/router.py::_build_menu`, usado por
-Terminal de mesas y menú QR), `pos-heladeria` (`pos-catalog-drawer.component.ts` y
-`public-menu.component.ts`, que hoy ninguno de los dos filtra ni distingue productos agotados en su
-grilla).
-
-**Riesgo asumido**: ninguno sobre datos — es un cambio de visibilidad, no de persistencia; el bloqueo
-real de "no se puede agregar al pedido" lo hace cumplir el backend en carrito y órdenes, no el simple
-ocultamiento del producto en el menú.
-
-**Tests afectados**: ninguno de characterization — `app/characterization_tests/test_menu_router.py` no
-prueba el filtro `Product.available` (ver `specs/093-cajero-carta-agotado/research.md`, D6); la lógica
-de "pedible por stock de opciones obligatorias" que sí protege ese archivo no se modifica.
-
+**Qué cambia**: nada en el modelo de datos — y eso es la decisión. El bloque "Datos de entrega" del
+Detalle de Orden muestra cuatro campos, pero `customer_orders` solo guarda **dos** como datos propios
+de entrega (`delivery_address`, `delivery_phone`, spec 056). Los otros dos se leen de datos ya
+existentes: **"nombre de quien recibe" = `customer_name`** y **"referencias o notas de entrega" =
+`notes`** (la nota general del pedido). Se descartó crear `delivery_contact_name` y `delivery_notes`.
+**Por qué cambia**: crear los dos campos propios no se detiene en dos columnas — arrastra el formulario
+de creación de domicilios en la terminal POS **y** en el Menú QR, una migración sin relleno retroactivo,
+y deja todo pedido histórico con el bloque incompleto. El valor que la spec entrega (despachar sin
+transcribir a mano) no depende de esa separación. **Consecuencia aceptada explícitamente**: `notes`
+tiene hoy un solo uso para dos propósitos, así que una nota dirigida a cocina ("sin cuchara") aparecerá
+bajo la etiqueta de referencias de entrega, en pantalla y en el texto copiado al portapapeles. No es un
+defecto de la implementación: es el precio de no tocar los formularios de creación, y se paga a
+sabiendas. Separar los dos usos de `notes` queda en _Fuera de Alcance_ de la spec 094 y necesita spec
+propia. **Quién y cuándo**: dueño de la spec, 2026-10-03. **Funcionalidades afectadas**:
+`pos-heladeria` únicamente (`order-detail.component.ts`). **`pos-backend` no se toca por esta entrada**:
+los cuatro campos ya viajan en `OrderResponse`. **Cero migraciones, cero columnas nuevas, cero cambios
+en los formularios de creación de domicilios.** **Tests afectados**: ninguno existente se debilita; los
+nuevos del detalle de orden cubren el caso de datos parciales (FR-020: campo vacío no se renderiza).
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/093-cajero-carta-agotado/` (Historia 2, research.md D6).
+`specs/094-detalle-orden-desglose-entrega/spec.md` (Clarifications Q1, FR-015/FR-015a).
+
+**Estado (2026-10-03)**: ESPECIFICADA — pendiente de plan e implementación.
+
+---
+
+### A-105 — [DECISIÓN DE NEGOCIO — spec 094] Con factura 1:1 el desglose se lee de la factura; cuando la factura agrupa varios pedidos la pantalla lo avisa en vez de prometer igualdad
+
+**Qué cambia**: el criterio de aceptación original del brief de la spec 094 ("el Total del detalle
+coincide exactamente con el total de la factura en Ventas") **no era universalmente cumplible**, y el
+reconocimiento lo demostró antes de escribir código. En los caminos de cobro por pedido
+(`pay_order`, `checkout_and_send`, aprobación de un intento de pago QR) la `Sale` se construye con
+`customer_order_id=order.id` y el descuento se graba en el propio pedido. Pero al cerrar una mesa con
+**varios** pedidos en cuenta unificada (`table_sessions/service.py::_close_unified`) se emite **una
+sola** `Sale` con `customer_order_id=None` y cada `CustomerOrder` queda con `discount = Decimal("0")` —
+aunque sí conserve la lista `applied_promotions` de la sesión completa. En ese caso el total de un
+pedido **no puede** igualar el total de la factura, porque la factura cubre más pedidos. La decisión:
+cuando existe una factura que cubre **solo** ese pedido, el desglose mostrado (subtotal, descuento,
+envío, total) se lee **de la factura**, con lo que la igualdad queda garantizada **por construcción** y
+no por coincidencia de dos cálculos independientes; cuando la factura **agrupa** varios pedidos, se
+muestra el desglose propio del pedido **más un aviso** de que la factura agrupa varios, y el Total del
+pedido **no** se presenta como el total facturado. **Por qué cambia**: la alternativa —mostrar siempre
+el desglose del pedido— habría dejado la pantalla de auditoría contradiciendo al módulo de Ventas en el
+caso más común de mesas, que es exactamente la disputa que la spec vino a resolver. Y la otra
+alternativa —ocultar el resumen cuando la factura agrupa— deja al cajero sin desglose justo ahí.
+**Quién y cuándo**: dueño de la spec, 2026-10-03. **Funcionalidades afectadas**: `pos-backend`
+(`OrderResponse` gana el estado de facturación de los tres casos —sin factura / factura propia /
+factura que agrupa— y el desglose de la factura cuando es propia; es el **único** trabajo de lógica
+nueva de servidor de la spec 094) y `pos-heladeria` (`order-detail.component.ts`). **Riesgo asumido**:
+ninguno sobre datos ni sobre cálculo — la bifurcación es de **lectura** y se resuelve en el servidor a
+propósito (FR-024b): deducirla en el navegador exigiría recalcular, que es lo que RN-001 de la spec 094
+prohíbe. No se escribe ni se migra nada. **Tests afectados**: ninguno existente se debilita; los
+characterization tests de cobro y de cierre de sesión quedan **intactos** (Principio III). Los nuevos
+cubren los tres casos de facturación. **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/094-detalle-orden-desglose-entrega/spec.md` (Clarifications Q2, FR-024/FR-024a/FR-024b).
+
+**Estado (2026-10-03)**: ESPECIFICADA — pendiente de plan e implementación.
+
+---
+
+### A-106 — [DECISIÓN DE NEGOCIO — spec 094] El Detalle de Orden de un pedido sin cobrar no muestra descuento, y lo dice
+
+**Qué cambia**: en un pedido que todavía no se ha cobrado (`recibida`, `abierta`, `bloqueada`) el
+descuento por promoción **no existe como dato guardado**: `CustomerOrder.discount` nace en `0` y solo se
+fija en el instante del cobro (spec 063, FR-021 / A-64). La decisión es mostrar
+`Total = Subtotal + Envío` **sin fila de descuento**, acompañado de un aviso de que el descuento se fija
+al cobrar. Se descartó traer el descuento vigente de `GET /orders/{id}/checkout-preview` aunque se
+marcara como "estimado". **Por qué cambia**: la consecuencia de la opción elegida es real y se acepta —
+un pedido abierto con promoción vigente mostrará un Total **mayor** que el que se le va a cobrar. Se
+acepta porque la alternativa es peor: introduciría una segunda fuente de verdad en la misma pantalla
+según el estado del pedido, y un importe que puede cambiar entre dos consultas, en la única pantalla
+cuyo valor consiste precisamente en que lo que muestra **no cambia** (RN-001, inmutabilidad histórica).
+El total autoritativo del cobro en curso ya lo da la terminal de mesas, que es la pantalla de cobro; el
+Detalle de Orden es la de consulta. El aviso es lo que impide que la diferencia se lea como un error de
+cálculo. **Quién y cuándo**: dueño de la spec, 2026-10-03. **Funcionalidades afectadas**:
+`pos-heladeria` únicamente (`order-detail.component.ts`). **`pos-backend` no se toca por esta entrada**.
+**Riesgo asumido**: ninguno sobre datos. El riesgo es de interpretación y se mitiga con el aviso.
+**Tests afectados**: ninguno existente; los nuevos cubren el pedido sin cobrar con promoción vigente.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/094-detalle-orden-desglose-entrega/spec.md` (Clarifications Q3, FR-023).
+
+**Estado (2026-10-03)**: ESPECIFICADA — pendiente de plan e implementación.
+
+---
+
+### A-107 — [HALLAZGO — spec 094] El Detalle de Orden es una sola pantalla y el rol Mesero también la ve: el desglose monetario le queda visible
+
+**Qué pasa**: el brief de la spec 094 pide enriquecer el Detalle de Orden "en los roles de
+Administración y Caja", y lo describe como un modal. El reconocimiento encontró otra cosa: es una
+**pantalla completa** en la ruta `orders/:id` del dashboard, servida por **un único** componente
+(`order-detail.component.ts`) cuyo `roleGuard` admite `ADMIN`, `CASHIER` **y `MESERO`**
+(`dashboard/routes.ts`). No hay una versión "de Administración" y otra "de Caja" que enriquecer por
+separado: hay una, y enriquecerla la enriquece **para los tres roles**. Consecuencia concreta: el
+mesero —que hoy ve en esa pantalla los ítems sin ningún importe— pasará a ver precios unitarios,
+subtotales, descuentos y total. **Tratamiento**: la spec 094 no cambia permisos ni oculta contenido por
+rol; registra la exposición del mesero como consecuencia explícita (sección _Usuarios_, RN-007) y deja
+"diferenciar el contenido visible por rol, incluido ocultar importes al mesero" en _Fuera de Alcance_.
+Si el negocio decide que el mesero no debe ver el desglose monetario, es un cambio de alcance con spec
+propia — y conviene decidirlo **antes** de implementar la 094, porque cambia el diseño de la pantalla
+(un único artefacto compartido vs. contenido condicionado por rol). **Tests afectados**: ninguno de
+comportamiento de datos. **Clasificación**: HALLAZGO. **Tratamiento acordado**:
+`specs/094-detalle-orden-desglose-entrega/spec.md` (_Usuarios_, RN-007, _Fuera de Alcance_).
+
+**Estado (2026-10-03)**: CERRADA — decisión de negocio tomada. El dueño decidió que **el mesero sí ve
+el desglose monetario**: una sola pantalla para los tres roles, sin contenido condicionado por rol
+(spec 094, _Clarifications_ Q4). El fundamento es que no hay exposición nueva: el `roleGuard` de
+`mesas-sesiones` —la terminal de mesas, que **ya muestra importes y totales**— admite a `MESERO`
+igual que el de `orders/:id` (`dashboard/routes.ts`). Queda confirmado RN-007 de la spec 094, y
+"ocultar importes al mesero" permanece en su _Fuera de Alcance_ como spec propia si alguna vez se
+decide lo contrario.
 
 ---
 
