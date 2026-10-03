@@ -550,6 +550,15 @@ sobre un fondo de alto contraste.
   diligencia. Este requisito aplica solo a pedidos creados a partir de esta funcionalidad;
   los pedidos históricos sin nombre no se migran y se muestran con un placeholder (ej.
   "Cliente sin nombre").
+
+  > **Enmienda 091 (A-99, 2026-10-01)**: lo anterior **ya no rige para Mesa y Para llevar
+  > creados desde la Terminal de mesas** (`channel=POS`). La spec
+  > [091](../091-cliente-consumidor-final/spec.md) reabre esta decisión: el campo vuelve a
+  > precargar "Consumidor final" y deja de bloquear "Crear pedido" si queda vacío — ese valor
+  > se guarda en su lugar. **Domicilio no cambia** (sigue exigiendo el nombre, aquí y en
+  > `orders/service.py`), igual que un pedido Para llevar creado por `WHATSAPP`/`API` (fuera
+  > de la Terminal) o por el menú QR. El texto de este FR-005 se conserva como registro de la
+  > decisión original de esta spec.
 - **FR-006**: El sistema MUST asignar a cada pedido de mesa un número secuencial ascendente
   según su hora de creación, y ese número MUST permanecer estable una vez asignado, sin
   recalcularse ni desplazarse al crearse pedidos nuevos. Este requisito aplica únicamente a
