@@ -3298,7 +3298,7 @@ nuevos del detalle de orden cubren el caso de datos parciales (FR-020: campo vac
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
 `specs/094-detalle-orden-desglose-entrega/spec.md` (Clarifications Q1, FR-015/FR-015a).
 
-**Estado (2026-10-03)**: ESPECIFICADA — pendiente de plan e implementación.
+**Estado (2026-10-03)**: IMPLEMENTADA — el bloque "Datos de entrega" lee `customer_name`, `delivery_phone`, `delivery_address` y `notes` del pedido, sin ningún campo nuevo ni formulario tocado (`order-detail.component.ts::camposDeEntrega`). Una sola función alimenta la tarjeta visible y el texto copiado, de modo que no puedan divergir. La consecuencia aceptada de Q1 —la nota del pedido sirviendo a dos propósitos, cocina y referencias de entrega— queda registrada como limitación viva en `specs/094-detalle-orden-desglose-entrega/implementation-notes.md`, candidata a spec propia.
 
 ---
 
@@ -3332,7 +3332,7 @@ characterization tests de cobro y de cierre de sesión quedan **intactos** (Prin
 cubren los tres casos de facturación. **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
 `specs/094-detalle-orden-desglose-entrega/spec.md` (Clarifications Q2, FR-024/FR-024a/FR-024b).
 
-**Estado (2026-10-03)**: ESPECIFICADA — pendiente de plan e implementación.
+**Estado (2026-10-03)**: IMPLEMENTADA — `orders/service.py::build_billing_summary` resuelve los tres casos en el servidor, en el orden de la tabla de `research.md` D2, y `_load_order` asigna `billing` **solo** en el detalle (el listado sigue devolviendo `null`, sin una consulta más). Verificado por las garantías G1–G9 de `contracts/order-detail-api.md` en `app/characterization_tests/test_orders_billing_summary.py` (30 tests). **Ampliación confirmada por el negocio el 2026-10-03**: el texto literal de FR-024a se usa **igual** en el cierre unificado y en el cierre dividido, aunque para el dividido sea impreciso (ahí un pedido se reparte en varias facturas, no se agrupa con otras). Se acepta porque lo accionable del aviso —"el total facturado está en Ventas"— es cierto en ambos casos y porque el frontend solo envía `billing_mode: 'unified'`, así que el caso dividido únicamente llega de datos históricos. Si el negocio quisiera un segundo texto, sería un `state` nuevo y una anomalía nueva, no un rediseño. **Segunda ampliación confirmada el 2026-10-03 (D2-bis)**: un pedido `cancelada` dentro de una mesa que después se cobró se clasifica `sin_factura`, **no** `factura_agrupada` (garantía G4b): el cierre de sesión solo cobra pedidos con `status NOT IN ('cancelada','pagada')`, así que mostrarle el aviso de cuenta unificada afirmaría un cobro que nunca existió, que es lo que RN-005 prohíbe.
 
 ---
 
@@ -3357,7 +3357,7 @@ cálculo. **Quién y cuándo**: dueño de la spec, 2026-10-03. **Funcionalidades
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
 `specs/094-detalle-orden-desglose-entrega/spec.md` (Clarifications Q3, FR-023).
 
-**Estado (2026-10-03)**: ESPECIFICADA — pendiente de plan e implementación.
+**Estado (2026-10-03)**: IMPLEMENTADA — `billing.state = "sin_factura"` fuerza `discount = 0`, `discount_label = null` y `promotions = []` (garantía G5), así que la fila de descuento no aparece por RN-004 y el Total es `Subtotal + Envío`. El aviso literal de FR-023 se pinta desde una constante del archivo, no interpolado en la plantilla, y los tests lo comparan completo. **Ampliación confirmada por el negocio el 2026-10-03 (D7)**: el aviso **se suprime** en un pedido `cancelada`. Su texto promete un cobro futuro ("este total aún puede cambiar") y un pedido cancelado es terminal: su total no va a cambiar nunca más, así que mostrarlo sería afirmar algo falso en la única pantalla cuyo valor consiste en que lo que muestra no cambia. Un cancelado sin factura muestra su desglose con los valores originales y la etiqueta "Cancelada", que es literalmente lo que pide US1 §5.
 
 ---
 
