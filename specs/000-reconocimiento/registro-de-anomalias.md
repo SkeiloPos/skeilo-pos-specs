@@ -3275,6 +3275,44 @@ lado de los dos pasos (T032, `quickstart.md` §7).
 
 ---
 
+### A-104 — [DECISIÓN DE NEGOCIO — spec 093] El menú QR y la Terminal de mesas dejan de ocultar los productos marcados "Agotado"; pasan a mostrarlos atenuados y bloquear agregarlos
+
+**Qué cambia**: `GET /menu` y `GET /menu/qr-token/{token}` (ambos resueltos por la misma función
+`_build_menu` en `app/api/v1/menu/router.py`) dejan de filtrar `Product.available.is_(True)` en la
+consulta de productos: un producto marcado "Agotado" (`available=False`) sigue devolviéndose en la
+respuesta, con un campo nuevo que lo identifica como tal, en vez de desaparecer del todo. Hoy
+desaparece sin dejar rastro tanto del menú QR del comensal como de la grilla de "Nueva orden" de la
+Terminal de mesas del personal — ambas pantallas consumen el mismo endpoint. El campo existente
+`available` de `MenuProductResponse` (que ya significa "puede pedirse dado el stock de sus opciones
+obligatorias", no lo mismo que el flag manual de la spec 093) no se toca ni cambia de semántica.
+
+**Por qué cambia**: la spec 093 le da al cajero (y al administrador) un interruptor manual "Agotado"
+para marcar que un producto no se puede vender sin tener que desactivarlo del catálogo. Si ese
+producto desaparece del menú QR y de la Terminal en cuanto se marca, el comensal y el propio cajero
+pierden visibilidad de que el producto existe y solo está temporalmente agotado. El negocio (dueño de
+la spec) pidió explícitamente lo contrario: visible pero bloqueado, nunca invisible (escenarios 5 y 6
+de la spec).
+
+**Quién y cuándo**: dueño de la spec, 2026-10-03 (criterios de aceptación de la spec 093).
+
+**Funcionalidades afectadas**: `pos-backend` (`app/api/v1/menu/router.py::_build_menu`, usado por
+Terminal de mesas y menú QR), `pos-heladeria` (`pos-catalog-drawer.component.ts` y
+`public-menu.component.ts`, que hoy ninguno de los dos filtra ni distingue productos agotados en su
+grilla).
+
+**Riesgo asumido**: ninguno sobre datos — es un cambio de visibilidad, no de persistencia; el bloqueo
+real de "no se puede agregar al pedido" lo hace cumplir el backend en carrito y órdenes, no el simple
+ocultamiento del producto en el menú.
+
+**Tests afectados**: ninguno de characterization — `app/characterization_tests/test_menu_router.py` no
+prueba el filtro `Product.available` (ver `specs/093-cajero-carta-agotado/research.md`, D6); la lógica
+de "pedible por stock de opciones obligatorias" que sí protege ese archivo no se modifica.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/093-cajero-carta-agotado/` (Historia 2, research.md D6).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
