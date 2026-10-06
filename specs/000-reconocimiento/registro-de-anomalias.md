@@ -3389,6 +3389,180 @@ decide lo contrario.
 
 ---
 
+### A-108 — [DECISIÓN DE NEGOCIO — spec 095] La cuenta desactivada deja de distinguirse de la inexistente: los dos casos dicen "Credenciales inválidas"
+
+**Qué cambia**: hoy el inicio de sesión responde con **tres** mensajes distinguibles, y uno de ellos
+delata que la cuenta existe. En `pos-backend/app/api/v1/auth/routes.py` el correo inexistente y la
+contraseña incorrecta devuelven `401 "Invalid credentials"` (líneas 164 y 188), pero la **cuenta
+desactivada** devuelve `403 "User account is inactive"` (línea 193) — en inglés, y con un texto que
+confirma que esa cuenta existe en ese negocio. Cualquiera puede así averiguar qué correos están
+registrados probándolos uno por uno. A partir de esta spec, la pantalla de inicio de sesión muestra
+**el mismo literal "Credenciales inválidas"** para los tres casos, carácter por carácter.
+**Por qué cambia**: FR-012 y SC-003 de la spec 095 exigen que ningún mensaje visible permita
+determinar si una cuenta existe, está desactivada o pertenece a otro negocio; el `403` actual lo
+permite. **Quién y cuándo**: Leonardo Gómez, 2026-10-05. **Funcionalidades afectadas**: solo
+`pos-heladeria` — el mapeo se hace en el camino de `login()` de `core/services/auth.service.ts`,
+**no** en `extractError()`, que comparten el cambio de contraseña, la solicitud de enlace y el
+restablecimiento, donde ese literal no tendría sentido. **El servidor no cambia**: sigue devolviendo
+`403` y su `detail` en inglés, y la spec 095 no toca `pos-backend` (FR-044). **Riesgo asumido**: se
+pierde el diagnóstico en pantalla para el usuario legítimo de una cuenta desactivada, que verá
+"Credenciales inválidas" y no sabrá que su cuenta fue dada de baja; tendrá que preguntarle a un
+administrador. Se acepta porque es exactamente la indistinguibilidad que SC-003 pide, y porque el
+código `403` sigue disponible en el servidor y en los registros para quien soporte el caso.
+**Tests afectados**: ninguno de `pos-backend` — los characterization tests de autenticación quedan
+intactos porque el servidor no cambia. En `pos-heladeria` se amplía `login.component.spec.ts` y
+`auth.service.spec.ts` para fijar que `401` **y** `403` producen el mismo literal.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/095-rediseno-login-recuperacion/spec.md` (FR-012, SC-003) y `research.md` (R7).
+
+**Estado (2026-10-05)**: REGISTRADA, pendiente de implementar (tareas T020, T021 y verificación
+manual T055, paso 3.3 de `quickstart.md`, que es donde se comprueba con una cuenta desactivada real).
+
+---
+
+### A-109 — [DECISIÓN DE NEGOCIO — spec 095] Cambian los dos textos de la spec 091: la etiqueta del super administrador y el aviso de host no reconocido
+
+**Qué cambia**: dos literales que la spec 091 fijó en las pantallas de autenticación se reemplazan
+por los que pide el rediseño. La etiqueta del subdominio de administración pasa de **"Acceso Super
+Admin"** a **"Administración de la plataforma"** (D8), y el aviso de un host que no corresponde a
+ningún acceso pasa de **"Esta dirección no corresponde a ningún acceso"** a **"No encontramos este
+negocio"**, acompañado de un enlace al sitio público de SkeiloPOS (D7). **Por qué cambia**: son los
+textos solicitados en el pedido del rediseño, y la spec 095 los adopta tal cual en su contrato de
+textos. Es un cambio de **redacción**, no de comportamiento: se conserva intacta la regla de la spec
+091 de **no renderizar ningún formulario y no emitir ninguna petición** en un host no reconocido.
+**Quién y cuándo**: Leonardo Gómez, 2026-10-05. **Funcionalidades afectadas**: solo `pos-heladeria`,
+y solo la capa de presentación de las tres pantallas de autenticación; el mecanismo de clasificación
+de host de la spec 091 (`TenantContextService`) se reutiliza sin tocarlo, para no introducir una
+segunda fuente de verdad (FR-010). **Riesgo asumido**: ninguno funcional. El único efecto es que
+quien busque en el código o en una captura los textos antiguos no los encontrará.
+**Tests afectados**: **exactamente dos** expectativas de `login.component.spec.ts` (las de los
+literales, en el bloque de contextos de host). Las aserciones que esos mismos tests hacen sobre "no
+se renderiza el formulario" y "no se llama al API" —que es lo que de verdad protegen— quedan
+**intactas**. Ninguno de los tests afectados lleva el prefijo `"CONGELA comportamiento actual:"`, y
+se verificó que no existe ningún characterization test en el área de autenticación del frontend.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/095-rediseno-login-recuperacion/spec.md` (D7, D8, FR-008, FR-009),
+`contracts/auth-copy-contract.md` y `research.md` (R16).
+
+**Estado (2026-10-05)**: REGISTRADA, pendiente de implementar (tarea T018; verificación en
+`quickstart.md` §2 y §10.2).
+
+---
+
+### A-110 — [DECISIÓN DE NEGOCIO — spec 095] El éxito del restablecimiento aterriza en `/login`, y el aviso de host no reconocido se extiende a las otras dos pantallas
+
+**Qué cambia**: dos comportamientos de navegación. **(1)** Hoy, al cambiar la contraseña con éxito,
+la pantalla de restablecimiento se queda donde está mostrando un estado propio con un enlace; a
+partir de esta spec **navega a `/login`** y el mensaje "Contraseña actualizada" se muestra allí, en
+una región anunciada a las ayudas técnicas, consumible una sola vez para que una recarga no lo
+repita. El estado `'done'` de la pantalla de restablecimiento **se elimina**. **(2)** El aviso de
+host no reconocido, que la spec 091 aplicaba solo al inicio de sesión, pasa a cubrir también
+`/forgot-password` y `/reset-password`, porque ahora vive en el cascarón compartido del que cuelgan
+las tres pantallas. **Por qué cambia**: (1) dejar al usuario en una pantalla cuyo propósito ya se
+cumplió lo obliga a buscar por dónde seguir, cuando lo único que queda por hacer es entrar;
+FR-031 lo fija. (2) las tres pantallas son públicas y se sirven antes de cualquier sesión, así que
+las tres tienen el mismo problema de host no reconocido; resolverlo en una y no en las otras dos era
+una inconsistencia del estado anterior, no una decisión. **Quién y cuándo**: Leonardo Gómez,
+2026-10-05. **Funcionalidades afectadas**: solo `pos-heladeria` —
+`pages/reset-password.component.ts`, `pages/login.component.ts` y el nuevo
+`core/auth/auth-notice.service.ts`, un aviso en memoria de un solo uso que **no viaja en la URL**,
+para que no se pueda fabricar desde fuera. **Riesgo asumido**: el aviso vive en memoria, así que se
+pierde si el usuario recarga entre el cambio y la llegada a `/login`; se acepta porque el estado
+perdido es un mensaje de cortesía, no información necesaria, y la alternativa —ponerlo en la URL—
+permitiría a cualquiera mostrar un "Contraseña actualizada" falso. **Tests afectados**: ninguno
+existente se debilita. `reset-password.component.spec.ts` y `forgot-password.component.spec.ts` **no
+existen hoy** y se crean con esta spec, porque son el único lugar donde FR-020 a FR-034 se pueden
+verificar. **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/095-rediseno-login-recuperacion/spec.md` (FR-031, FR-009) y `research.md` (R6, R12).
+
+**Estado (2026-10-05)**: REGISTRADA, pendiente de implementar (tareas T026 y T042; verificación en
+`quickstart.md` §2.5, §5.9 y §5).
+
+---
+
+### A-111 — [HALLAZGO — spec 095] El enlace de recuperación no está atado al negocio que lo emitió: abierto en otro subdominio, funciona
+
+**Qué pasa**: FR-037 de la spec 095 pedía que un enlace de recuperación emitido para un negocio se
+tratara como no válido si se abría en el subdominio de otro negocio o en el de administración. El
+reconocimiento encontró que **no se puede cumplir sin tocar el servidor**.
+`_resolve_reset_token` (`pos-backend/app/api/v1/auth/routes.py:68-94`) calcula el SHA-256 del token
+recibido y resuelve la fila con un `select(PasswordResetToken).where(PasswordResetToken.token_hash
+== token_hash)` (línea 75) — **sin una sola condición de tenant ni de host**, y contra la base de
+datos **compartida** (`get_shared_db`), no contra el schema del negocio. Los dos endpoints que lo
+usan, `validate_reset_token` (línea 303) y `reset_password` (línea 318), heredan esa resolución y
+tampoco miran la cabecera `X-Tenant-Host` que el cliente sí envía. Consecuencia verificable: un
+enlace emitido para un usuario de `negocioa`, abierto en `negociob` o en `admin`, **valida y permite
+fijar la contraseña** de la cuenta de `negocioa`. **Tratamiento**: cerrarlo exige modificar el
+contrato de esos dos endpoints, que es exactamente lo que **FR-044 de la misma spec prohíbe** — la
+095 es un rediseño de superficie y no toca `pos-backend`. Los dos requisitos eran incompatibles
+entre sí, y resolver el conflicto no era una decisión que el implementador pudiera tomar.
+**Gravedad**: el aislamiento de la **cuenta** no se rompe —el enlace solo cambia la contraseña de la
+cuenta para la que se emitió, y quien lo tiene ya tiene acceso a ese correo—; lo que no es hermético
+es el aislamiento del **subdominio**. **Tests afectados**: ninguno. **Clasificación**: HALLAZGO.
+**Tratamiento acordado**: `specs/095-rediseno-login-recuperacion/spec.md` (FR-037, FR-036, SC-010,
+D13), `research.md` (R18) y `quickstart.md` §8, que verifica el comportamiento real en vez del
+requisito.
+
+**Resultado observado (2026-10-05, tarea T059 — cierra la puerta G2)**: se verificó empíricamente
+contra el backend de desarrollo, no solo por lectura de código. Se emitió un enlace de recuperación
+para un usuario del negocio `heladeria` y se abrió desde otros contextos:
+
+| Contexto desde el que se abre el enlace de `heladeria` | Respuesta de `GET /auth/reset-password/validate` |
+|---|---|
+| `heladeria` (el negocio que lo emitió) | `200 {"valid": true}` |
+| `skeilo` (**otro negocio**) | `200 {"valid": true}` |
+| `admin` (administración de la plataforma) | `200 {"valid": true}` |
+| **sin cabecera `X-Tenant-Host` en absoluto** | `200 {"valid": true}` |
+
+En la interfaz, abrir ese mismo enlace en `skeilo.localhost:4200/reset-password?token=…` muestra la
+insignia `skeilo` y **el formulario completo de contraseña nueva**, habilitado para fijar la
+contraseña de la cuenta de `heladeria`. El cuarto caso es el más revelador: confirma que la
+resolución del token **ignora por completo** el host, no que lo compare mal. El token de prueba se
+creó solo para esta verificación y se eliminó de la base de datos al terminar.
+
+**Estado (2026-10-05)**: CERRADA — decisión de negocio tomada **y evidencia empírica asentada**.
+**Leonardo Gómez decidió el 2026-10-05 aceptar la limitación**: FR-044 prevalece, FR-037 queda
+reformulado en la spec como limitación conocida y documentada, SC-010 pierde su cláusula de
+subdominio, y FR-036 aclara que su "únicamente desde el subdominio de administración" vale para
+**solicitar** el enlace, no para ejecutarlo. La decisión **no abre** una spec de `pos-backend`; si
+alguna vez se quisiera cerrar la brecha, haría falta una spec propia que ate el token a su tenant de
+emisión, con su decisión sobre el contrato de los dos endpoints y sus propios characterization
+tests. **Clasificación final**: HALLAZGO + DECISIÓN.
+
+---
+
+### A-112 — [DECISIÓN DE NEGOCIO — spec 095] El inicio de sesión regresa al destino que el usuario intentaba abrir, y no siempre a la pantalla inicial del rol
+
+**Qué cambia**: hasta ahora, entrar al sistema llevaba **siempre** a la pantalla inicial del rol (o al
+panel de super administrador), sin importar qué estuviera intentando abrir el usuario cuando se le
+pidió identificarse. A partir de esta spec, si llegó a `/login` porque un guard lo interceptó, al
+entrar vuelve a **esa** pantalla. **Por qué cambia**: FR-018 de la spec 095 lo exige ("DEBE llevar al
+usuario a la pantalla de destino que intentaba abrir, o a la pantalla inicial de su rol cuando no
+haya destino previo"). **Lo que el reconocimiento no vio**: la spec, el plan y la tarea T022 daban
+por sentado que este comportamiento **ya existía** y que bastaba con "conservarlo" al reescribir la
+plantilla. Al implementar se comprobó que **no existía**: `authGuard`
+(`pos-heladeria/src/app/core/guards/auth.guard.ts`) devolvía `router.createUrlTree(['/login'])` sin
+guardar la ruta interceptada, de modo que el destino se perdía en la redirección y era imposible
+recuperarlo después. El paso 3.7 de `quickstart.md` —abrir `/dashboard/inventario` sin sesión y
+comprobar que al entrar se llega ahí— no habría pasado nunca. **Quién y cuándo**: Leonardo Gómez,
+2026-10-05 (decisión ya tomada al aprobar FR-018 en la spec). **Funcionalidades afectadas**: solo
+`pos-heladeria`, dos archivos — `core/guards/auth.guard.ts` añade `returnUrl` como parámetro de
+consulta, y `modules/auth/pages/login.component.ts` lo lee al montarse. **El servidor no cambia**
+(FR-044). **Riesgo asumido y cómo se acota**: `returnUrl` llega desde la URL, así que cualquiera
+puede fabricarlo; sin control, la pantalla de inicio de sesión se convertiría en un *open redirect*
+hacia un sitio externo. Por eso solo se acepta una ruta **interna**: debe empezar por `/` y no por
+`//` —que el navegador interpreta como relativa al protocolo, es decir, otro host—. Cualquier otro
+valor se ignora y se usa el destino de siempre. **Tests afectados**: ninguno existente se debilita;
+se añaden L5 (con destino previo se navega ahí) y L6 (sin destino previo se navega al `ROLE_HOME`,
+que queda intacto) en `login.component.spec.ts`. **Verificado en vivo** el 2026-10-05: abrir
+`/dashboard/inventario` sin sesión redirige a `/login?returnUrl=%2Fdashboard%2Finventario`.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/095-rediseno-login-recuperacion/spec.md` (FR-018, FR-019) y `quickstart.md` §3.7.
+
+**Estado (2026-10-05)**: REGISTRADA E IMPLEMENTADA.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
