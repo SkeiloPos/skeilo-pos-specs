@@ -3563,6 +3563,304 @@ que queda intacto) en `login.component.spec.ts`. **Verificado en vivo** el 2026-
 
 ---
 
+### A-113 — [DECISIÓN DE NEGOCIO — spec 096] Los cuatro correos de acceso cambian de asunto: la invitación deja de decir "Bienvenido a {negocio}"
+
+**Qué cambia**: los asuntos de los cuatro correos transaccionales de acceso. Hoy son
+`f"Bienvenido a {tenant.name}"` para la invitación y su reenvío
+(`pos-backend/app/api/v1/invitations/router.py:137` y `:213`),
+`f"Bienvenido a {body.tenant_name}"` para el alta de un negocio
+(`app/api/v1/super_admin/router.py:147`), `"Restablecer tu contraseña"`
+(`app/api/v1/auth/routes.py:291`) y `"Tu contraseña fue cambiada"`
+(`app/api/v1/auth/routes.py:51`). A partir de esta spec son exactamente tres literales: **"Te
+invitaron a unirte a {negocio} en SkeiloPOS"** (invitación, reenvío y alta de negocio),
+**"Restablece tu contraseña de SkeiloPOS"** y **"Tu contraseña de SkeiloPOS fue cambiada"**.
+**Por qué cambia**: el asunto de la invitación no dice que se trate de una invitación —"Bienvenido
+a Granizados Del Sol" se lee como publicidad del negocio, no como un correo del sistema que trae
+credenciales— y ninguno de los cuatro nombra el producto, de modo que el destinatario no puede
+reconocer el origen antes de abrirlo. Los tres literales nuevos son los que fija el pedido y los
+exige FR-010 de la spec 096. **Quién y cuándo**: Leonardo Gómez, 2026-10-06.
+**Funcionalidades afectadas**: solo `pos-backend`, y solo la línea de asunto de los cuatro puntos de
+envío; ni los disparadores, ni el destinatario, ni el momento del envío cambian. `pos-heladeria` no
+se toca. **Riesgo asumido**: quien tenga reglas de bandeja, búsquedas guardadas o filtros apoyados
+en los asuntos anteriores deja de encontrar los correos nuevos, y los correos ya enviados conservan
+su asunto antiguo, así que durante un tiempo convivirán los dos. Se acepta porque el volumen es bajo
+y el beneficio —un asunto que identifica producto y propósito— aplica desde el primer envío.
+**Tests afectados**: **exactamente dos** aserciones afirman los literales actuales y deben
+actualizarse citando esta entrada: `app/characterization_tests/test_auth_change_password.py:107`
+(`"Tu contraseña fue cambiada"`) y `app/characterization_tests/test_auth_reset_password.py:175`
+(la lista `["Restablecer tu contraseña", "Tu contraseña fue cambiada"]`). Ninguna de las dos lleva el
+prefijo `"CONGELA comportamiento actual:"`. No existe ningún test que afirme el asunto de la
+invitación ni el del alta de negocio. **Clasificación**: DECISIÓN DE NEGOCIO.
+**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (D13, FR-010, FR-059).
+
+**Estado (2026-10-06)**: IMPLEMENTADA. Los tres asuntos nuevos salen de `app/core/mail_templates/`
+(`invitacion.py`, `restablecimiento.py`, `contrasena_cambiada.py`), y los dos tests citados se
+actualizaron citando esta entrada.
+
+---
+
+### A-114 — [DECISIÓN DE NEGOCIO — spec 096] El remitente pasa a llamarse "SkeiloPOS", pero su dirección sigue siendo la del dominio de pruebas del proveedor
+
+**Qué cambia**: el nombre visible del remitente. `create_message` compone el campo de origen como
+`f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"` (`pos-backend/app/core/mail.py:12-19`), y hoy
+`MAIL_FROM_NAME` vale **"Mi app"** y `MAIL_FROM` apunta al dominio de pruebas del proveedor de
+correo (`onboarding@resend.dev`). A partir de esta spec el nombre visible es **"SkeiloPOS"**; la
+dirección **no cambia**. **Por qué cambia**: el pedido exige enviar desde `no-reply@skeilopos.com`
+con SPF, DKIM y DMARC alineados con `skeilopos.com`, pero la autenticación del dominio quedó
+explícitamente fuera del alcance de esta spec por decisión del negocio. Cambiar la dirección antes
+de verificar el dominio ante el proveedor haría que el proveedor **rechace los envíos** y ningún
+correo saldría del sistema. El nombre visible, en cambio, se puede corregir sin riesgo alguno y es
+lo primero que el destinatario lee en su bandeja: hoy dice "Mi app". **Quién y cuándo**: Leonardo
+Gómez, 2026-10-06. **Funcionalidades afectadas**: los cuatro correos, por configuración de entorno,
+no por código. **Es un cambio de variable de entorno**: si `MAIL_FROM_NAME` no se actualiza en el
+`.env` del servidor, el nombre antiguo persiste aunque las plantillas nuevas estén desplegadas, así
+que forma parte de la verificación del despliegue y no de la suite de tests. **Riesgo asumido**: el
+remitente real sigue siendo un dominio ajeno al producto, con dos consecuencias que el negocio
+acepta a sabiendas — los correos quedan expuestos a filtros de correo no deseado, y el escenario 18
+del pedido (SPF/DKIM/DMARC en "pass" alineados con `skeilopos.com`) **no se cumple** hasta que
+exista la spec de entregabilidad. **Tests afectados**: ninguno; ningún test afirma el remitente.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/096-correos-transaccionales/spec.md` (D8, FR-011) y su sección *Fuera de Alcance*.
+
+**Estado (2026-10-06)**: IMPLEMENTADA. `MAIL_FROM_NAME` pasó de `"Mi app"` a `"SkeiloPOS"` en
+`pos-backend/.env` de desarrollo. **Pendiente al desplegar**: cambiar el secreto equivalente en el
+entorno de producción — fuera del alcance de este repositorio.
+
+---
+
+### A-115 — [DECISIÓN DE NEGOCIO — spec 096] El correo del alta de un negocio pierde su plantilla propia y reusa la de invitación
+
+**Qué cambia**: `welcome_email_body()` (`pos-backend/app/core/mail.py:42-65`) deja de usarse y el
+alta de un negocio por parte del Super Admin (`app/api/v1/super_admin/router.py:145-153`, vía
+Celery) pasa a enviar **la misma plantilla que una invitación de usuario**. Hoy son dos maquetas
+distintas con el contenido idéntico —URL de ingreso, usuario y contraseña generada— y con un texto
+de cierre diferente: la de bienvenida dice *"te recomendamos cambiar tu contraseña después de
+iniciar sesión por primera vez"*, mientras la de invitación informa que es obligatorio.
+**Por qué cambia**: dos razones. La primera es de presentación: sin este cambio, el correo del alta
+de negocio quedaría como el único de los cuatro sin la marca del producto, y es justamente el
+primero que ve un cliente que acaba de contratar. La segunda es de exactitud, y se verificó en el
+código: `tenant_create` crea la cuenta del dueño con `must_change_password=True`
+(`app/core/db.py`, bloque de creación del usuario administrador), de modo que **el cambio sí es
+obligatorio** y el texto actual, que lo presenta como una recomendación, describe mal lo que el
+sistema hace — el dueño se topará con el cambio forzado sin que el correo se lo hubiera anunciado.
+**Quién y cuándo**: Leonardo Gómez, 2026-10-06. **Funcionalidades afectadas**: solo `pos-backend`.
+El flujo de alta de negocios **no cambia**: mismo disparador, mismo envío en segundo plano, misma
+tolerancia a que la mensajería no esté disponible (el `try/except` que no rompe la respuesta se
+conserva). Lo único que cambia es la plantilla y el asunto (ver A-113). **Riesgo asumido**: el correo
+del alta de negocio dirá "Te invitaron a unirte a {negocio}" cuando en rigor el destinatario **es**
+el dueño de ese negocio y nadie lo "invitó". Se acepta porque la alternativa —mantener dos maquetas
+casi iguales— duplica el trabajo de cualquier cambio futuro y ya produjo la divergencia de texto que
+esta entrada corrige. **Tests afectados**: ninguno afirma el contenido de este correo.
+`welcome_email_body()` queda sin llamadores; retirarla o conservarla es decisión de la fase de plan,
+y en ningún caso debe quedar en uso a medias. **Clasificación**: DECISIÓN DE NEGOCIO.
+**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (D9, FR-026, Historia 5).
+
+**Estado (2026-10-06)**: IMPLEMENTADA. `welcome_email_body()` se retiró sin sustituto propio;
+`super_admin/router.py` usa `construir_correo_invitacion` con los mismos campos y asunto que una
+invitación de tenant. Cobertura nueva en `test_correo_invitacion.py` (no tenía test antes).
+
+---
+
+### A-116 — [DECISIÓN DE NEGOCIO — spec 096] El correo de restablecimiento añade el enlace en texto visible, que el diseño aprobado no contempla
+
+**Qué cambia**: el correo de restablecimiento pasa a mostrar, además del botón "Restablecer
+contraseña", **el enlace completo en texto visible y seleccionable**. Hoy la plantilla
+(`pos-backend/app/core/mail.py:98-119`) solo trae el botón, y el diseño aprobado
+(`Restablecer contraseña.dc.html`) tampoco incluye el enlace en texto. **Por qué cambia**: el
+escenario 8 del pedido lo exige explícitamente, y la razón es práctica: hay clientes de correo y
+configuraciones corporativas que no renderizan el botón o le quitan el estilo, y en esos casos hoy el
+destinatario se queda sin ninguna forma de llegar a la pantalla. Es una de las dos excepciones a la
+regla de arbitraje de la spec (D3, "el diseño manda en lo visual"), y se toma porque la ausencia del
+enlace no es una decisión de diseño sino una omisión frente al pedido. **Quién y cuándo**: Leonardo
+Gómez, 2026-10-06. **Funcionalidades afectadas**: solo la plantilla del correo de restablecimiento en
+`pos-backend`. El enlace, su vigencia de 30 minutos y su uso único no cambian.
+**Riesgo asumido**: el cuerpo del correo pasa a contener el token **dos veces**, en el destino del
+botón y en el texto visible. No aumenta la exposición —el token ya viajaba en ese mismo correo, y
+quien lee el correo ya tiene el enlace—, pero sí hace más visible al ojo humano un valor sensible,
+por ejemplo si el destinatario comparte una captura de pantalla pidiendo ayuda. Se acepta porque es
+el mismo riesgo que ya asume cualquier correo de recuperación con enlace, y porque el enlace vence
+en 30 minutos y se invalida al primer uso. **Tests afectados**: ninguno se rompe, pero **dos
+dependen del cuerpo** y deben seguir en verde:
+`app/characterization_tests/test_auth_forgot_password.py:44-46` y
+`test_auth_reset_password.py:165` extraen el token del HTML con la expresión
+`token=([^"&]+)`. Con el token presente dos veces, la primera coincidencia sigue siendo la del
+destino del botón, que termina en una comilla y por tanto acota bien la captura; la del texto
+visible, que no está entre comillas, **no debe quedar antes** en el cuerpo. Es exactamente lo que
+FR-060 de la spec exige verificar. **Clasificación**: DECISIÓN DE NEGOCIO.
+**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (FR-031, FR-060).
+
+**Estado (2026-10-06)**: IMPLEMENTADA. El enlace visible va después del `href` del botón en el
+marcado (`restablecimiento.py`); `test_auth_forgot_password.py` y `test_auth_reset_password.py`
+siguen extrayendo el token con su regex original, sin modificarlo (FR-060, confirmado por T035).
+
+---
+
+### A-117 — [DECISIÓN DE NEGOCIO — spec 096] El correo de contraseña cambiada añade la fila "NEGOCIO", que el diseño aprobado no contempla
+
+**Qué cambia**: la tarjeta de datos del correo de aviso de contraseña cambiada pasa de dos filas a
+**tres**: "CUENTA", **"NEGOCIO"** y "FECHA Y HORA". El diseño aprobado
+(`Contraseña cambiada.dc.html`) solo tiene cuenta y fecha, y la plantilla actual
+(`pos-backend/app/core/mail.py:121-133`) solo muestra el correo y el momento del cambio.
+**Por qué cambia**: el escenario 11 del pedido exige los tres datos, y la razón de fondo es que una
+misma persona puede tener cuenta en más de un negocio con el mismo correo —el modelo lo permite,
+porque las cuentas se aíslan por negocio— y sin ese dato el aviso no le dice **cuál** de sus
+contraseñas cambió, que es justo lo que el correo existe para comunicar. Es la segunda excepción a
+la regla de arbitraje D3, por el mismo criterio que A-116: es una omisión frente al pedido, no una
+decisión de diseño. **Quién y cuándo**: Leonardo Gómez, 2026-10-06. **Funcionalidades afectadas**:
+la plantilla en `pos-backend` y **el dato que el disparador le pasa**:
+`_dispatch_password_changed_email` (`app/api/v1/auth/routes.py:45-60`) hoy solo recibe el correo y
+el momento, así que la fase de plan debe resolver cómo obtiene el nombre comercial del negocio desde
+la cuenta, sin añadir consultas que puedan romper el envío. **Riesgo asumido**: añade una dependencia
+de datos a un correo que hoy se genera con dos valores sueltos; si ese dato no se puede obtener, el
+correo no debe dejar de enviarse por eso —es el único aviso de seguridad del sistema— y la variante
+sin negocio ya existe para el Super Admin (FR-035), de modo que el caso tiene salida definida.
+**Tests afectados**: ninguno afirma el contenido de la tarjeta.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/096-correos-transaccionales/spec.md` (D5, FR-034, FR-035).
+
+**Estado (2026-10-06)**: IMPLEMENTADA. `_dispatch_password_changed_email` pasó a recibir el `User`
+completo (research Decisión 8) y deriva `user.tenant_name` sin ninguna consulta nueva; la fila
+"NEGOCIO" aparece en la variante de tenant y se omite por completo en la de Super Admin (FR-035).
+
+---
+
+### A-118 — [DECISIÓN DE NEGOCIO — spec 096] El correo de contraseña cambiada deja de mostrar la hora en UTC y pasa a la hora de Colombia
+
+**Qué cambia**: el formato del momento del cambio en el correo de aviso. Hoy
+`app/api/v1/auth/routes.py:52` lo compone con `when.strftime("%d/%m/%Y %H:%M UTC")`, de modo que el
+destinatario recibe, por ejemplo, `02/10/2026 21:06 UTC`. El diseño aprobado muestra ese mismo
+formato (`02/10/2026 · 21:06 UTC`). A partir de esta spec el correo muestra
+**`02/10/2026 · 04:06 p. m. (hora de Colombia)`**: hora de 12, con cero inicial y la zona nombrada
+en palabras. **Por qué cambia**: el propósito de este correo es que el titular reconozca si el
+cambio fue suyo, y para eso la hora tiene que ser la que él usa. Un empleado de mostrador no
+convierte UTC a hora local, así que una hora en UTC vuelve inútil el único aviso de seguridad del
+sistema: ve una hora que no coincide con nada de lo que hizo y no puede decidir si debe alarmarse.
+Es la tercera consecuencia de la regla de arbitraje D3 —el diseño manda en lo visual, el pedido manda
+en el contenido—, y la pide el escenario 11. **Quién y cuándo**: Leonardo Gómez, 2026-10-06.
+**Funcionalidades afectadas**: solo `pos-backend`, y solo el formato de ese texto. El backend ya
+tiene la utilidad de zona horaria (`app/core/timezone.py`, con `TENANT_TIMEZONE` =
+`America/Bogota`), así que no se introduce ninguna dependencia nueva. **Riesgo asumido**: la hora se
+fija en la de Colombia para todos los destinatarios, no en la del negocio de cada uno, aunque la
+tabla de negocios tenga una columna de zona horaria propia (con `America/Bogota` como valor por
+omisión para todo negocio existente). Si algún día existe un negocio fuera de Colombia, su personal
+verá una hora que no es la suya, y el aviso volverá a tener el problema que esta entrada corrige. Se
+acepta porque hoy **todos** los negocios están en Colombia y porque la alternativa —resolver la zona
+del negocio en el momento del envío— no aplica al Super Admin, que no tiene negocio.
+**Tests afectados**: ninguno. Se verificó que ningún test del backend afirma el formato de fecha de
+este correo. **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/096-correos-transaccionales/spec.md` (D4, FR-036, SC-008).
+
+**Estado (2026-10-06)**: IMPLEMENTADA. `_campos.formatear_fecha_hora_colombia` fija `timezone.utc`
+sobre el `datetime` naive recibido antes de convertir a `ZoneInfo(settings.TENANT_TIMEZONE)`, nunca
+`astimezone()` sobre el valor naive — verificado además con `TZ=America/Bogota` en el proceso para
+confirmar que no depende de la zona del host. **Verificación pendiente con envío real** (T060/V7).
+
+---
+
+### A-119 — [HALLAZGO — spec 096] La plantilla de invitación escapa únicamente el nombre de la persona: el nombre del negocio y el resto de los valores se interpolan crudos
+
+**Qué pasa**: `invitation_email_body()` (`pos-backend/app/core/mail.py:67-96`) escapa **un solo**
+valor dinámico, el nombre de la persona invitada
+(`greeting = f"Hola, {html.escape(name, quote=True)}:"`, incorporado por la spec 091 junto con su
+test dedicado). Los otros cuatro valores de la misma plantilla —`tenant_name`, `email`, `password` y
+`login_url`— se interpolan directamente en el HTML sin escapar, igual que ocurre en las otras tres
+plantillas del archivo (`welcome_email_body`, `password_reset_email_body` y
+`password_changed_email_body`), que no escapan nada en absoluto. Consecuencia verificable: un negocio
+cuyo nombre comercial contenga marcado —por ejemplo `<b>x</b>`— produce un correo en el que ese
+marcado **se interpreta** en lugar de leerse, y el escenario 14 del pedido, que exige exactamente lo
+contrario, no se cumple hoy. **Gravedad**: baja en explotabilidad, relevante en corrección. El
+nombre comercial lo fija un Super Admin al dar de alta el negocio, no un usuario cualquiera, así que
+no hay un camino abierto por el que un tercero inyecte contenido; y el destinatario del correo es el
+propio usuario del negocio, no una víctima externa. Lo que sí está roto hoy es la presentación: un
+nombre legítimo con `&` o con comillas se muestra mal o se renderiza raro. El caso que sí tiene
+alcance real es el **nombre de la persona**, que lo escribe un administrador de tenant al invitar —y
+ese es precisamente el único que ya está escapado. **Tratamiento**: FR-040 de la spec 096 exige
+escapar **todos** los valores dinámicos de las tres plantillas nuevas, y FR-041 exige además que la
+generación falle cuando falte un valor obligatorio, en lugar de producir un correo con "None". El
+hallazgo se cierra al implementarse la spec. **Tests afectados**: `test_invitation_email_greeting.py`
+ya protege el escape del nombre de la persona (incluido el caso del apóstrofo, `"O&#x27;Brien"`) y
+debe seguir protegiéndolo; no existe ningún test que cubra el escape de los otros valores, y la spec
+pide añadirlos. **Clasificación**: HALLAZGO. **Tratamiento acordado**:
+`specs/096-correos-transaccionales/spec.md` (FR-040, FR-041, SC-004, y la fila correspondiente de
+*Contexto y Encuadre*).
+
+**Estado (2026-10-06)**: CORREGIDA por FR-040 con esta implementación. `_campos.escapar_valores`
+es el único punto por el que pasa todo valor dinámico antes de insertarse en HTML — ya no es una
+convención que se pueda olvidar al añadir una plantilla, sino la única puerta de entrada
+(`_campos.py`, cubierto por `test_plantillas_correo_escape.py`).
+
+---
+
+### A-120 — [HALLAZGO — spec 096] El archivo de entorno define dos veces la dirección del servicio de correo: en desarrollo los correos salen por el servicio de producción
+
+**Qué pasa**: `pos-backend/.env` define `EMAIL_API_URL` **dos veces**, primero con el valor local
+(`http://localhost:8080`) y después con el de producción (`https://app.skeilopos.com`). Al cargarse
+el archivo gana la última asignación, de modo que **el entorno de desarrollo envía los correos por
+el servicio de producción**. Ya estaba consignado como observación en
+[`mapa-sistema.md`](./mapa-sistema.md) (sección de variables de entorno duplicadas) y se confirmó al
+preparar la spec 096. La consecuencia práctica es que cualquier prueba manual del flujo de
+invitación, restablecimiento o cambio de contraseña hecha contra el backend local **envía correo
+real** a la dirección que se use de prueba, y lo hace con el remitente de producción.
+**Gravedad**: sin impacto en producción —el valor efectivo es el correcto allí—, pero es una trampa
+de desarrollo en dos sentidos: un bucle de pruebas puede enviar correos reales sin que nadie lo
+advierta, y nadie lo notará al leer el archivo, porque la primera asignación sugiere lo contrario.
+También implica que la verificación del cuerpo en texto plano que la spec 096 exige (FR-048) y la
+revisión en clientes de correo reales (FR-052) salen por el servicio de producción, lo cual es
+deseable para esa verificación concreta pero debe hacerse a sabiendas y con una casilla de prueba,
+no con la de un usuario real. **Tratamiento**: no se corrige en la spec 096, que es de plantillas y
+no de configuración: se deja registrado para que quien implemente y verifique sepa a dónde van sus
+correos. La limpieza del archivo de entorno —una sola asignación por variable, y un servicio local o
+un modo de envío inerte para desarrollo— es trabajo propio, candidato natural a la spec de
+entregabilidad que A-114 ya anticipa. **Tests afectados**: ninguno; los tests del backend simulan el
+envío y no contactan el servicio. **Clasificación**: HALLAZGO.
+**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (*Assumptions*, verificación
+con envío real) y [`registro-riesgos.md`](./registro-riesgos.md) **R20**, que ya describe el
+microservicio de correo externo como dependencia fuera del control del repositorio.
+
+**Estado (2026-10-06)**: REGISTRADA, sin corrección prevista en esta spec.
+
+---
+
+### A-121 — [DECISIÓN DE NEGOCIO — spec 096] Un valor obligatorio vacío pasa a impedir la creación de la invitación, en vez de enviar un correo con el hueco
+
+**Qué cambia**: el resultado de `POST /invitations` y de `POST /invitations/{id}/resend` cuando uno
+de los valores obligatorios del correo —nombre comercial del negocio, URL de ingreso, correo o
+contraseña temporal— llega vacío o nulo. Hoy `invitation_email_body()`
+(`pos-backend/app/core/mail.py:67-96`) interpola el valor tal cual, el correo sale con el hueco o con
+la palabra `None`, y la invitación **queda creada y confirmada** al administrador. A partir de esta
+spec la generación del correo falla con `ErrorDePlantillaDeCorreo` (FR-041), ese fallo entra por el
+mismo `except` que ya captura el fallo del servicio de correo
+(`app/api/v1/invitations/router.py:147-152`), y la respuesta es el mismo `502` con el mismo
+`db.rollback()`: **la invitación no queda creada**. **Por qué cambia**: la invitación es el único de
+los cuatro correos que lleva la contraseña temporal, y es el único cuyo flujo ya trata "el correo no
+salió" como motivo para no confirmar la invitación —regla que la spec 037 estableció
+deliberadamente—. Una invitación creada cuyo correo llegó sin la URL o sin la contraseña es
+exactamente el agujero que esa regla cierra: el administrador ve la invitación como válida y la
+persona no puede entrar. Se descartaron las dos alternativas: crear la invitación y fallar solo el
+correo (deja la invitación huérfana), y exceptuar la invitación de FR-041 (es justo el correo que no
+puede salir incompleto). **Quién y cuándo**: Leonardo Gómez, 2026-10-06, en la clarificación de la
+spec 096 (D16). **Funcionalidades afectadas**: solo `pos-backend`, y solo los dos disparadores de
+invitación. No se crea ninguna vía de error nueva (FR-057 lo prohíbe): se añade
+`ErrorDePlantillaDeCorreo` al `except RuntimeError` existente. Como ese `except` hoy **no registra
+nada** y FR-041 exige registrar el error con contexto suficiente, el módulo gana un `logger` propio
+—con los nombres de los campos faltantes y nunca sus valores (FR-042)—. En el reenvío el fallo no
+deja nada que revertir, porque el correo se despacha antes de sobrescribir `password_hash` y
+`sent_at`. **Riesgo asumido**: un dato faltante que hoy producía un correo feo pero una invitación
+usable pasa a producir un `502` sin invitación. Se acepta porque el caso solo puede darse con datos
+corruptos —el nombre comercial es `NOT NULL`, el correo lo valida el esquema de entrada y la
+contraseña la genera el propio backend—, y porque el `502` nombra el problema mientras que el correo
+con `None` lo esconde. **Tests afectados**: ninguno existente afirma este comportamiento; la spec
+añade el test de que un valor obligatorio vacío produce `502` con rollback y sin fila de invitación.
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/096-correos-transaccionales/spec.md` (D16, FR-041, FR-042, FR-057, SC-005).
+
+**Estado (2026-10-06)**: IMPLEMENTADA. `invitations/router.py` añadió `ErrorDePlantillaDeCorreo`
+al `except RuntimeError` existente (mismo `502`, mismo `db.rollback()`, sin vía de error nueva) y un
+`logger.warning` con los campos faltantes y ningún valor (FR-042). Test nuevo en
+`test_invitations_create.py`.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
