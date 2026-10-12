@@ -3978,6 +3978,64 @@ reabre la protección especial del Principio III. Se agrega un test nuevo:
 
 ---
 
+### A-124 — [DECISIÓN DE NEGOCIO — spec 112] Se revierte la eliminación de "Combinar método de pago" que hizo la spec 046
+
+**Qué cambia**: la spec [046](../046-dividir-cuenta-pago-pendiente/spec.md) (FR-006/FR-007)
+eliminó por completo, en toda la aplicación, la capacidad de cobrar un pedido combinando más de
+un método de pago en el mismo cobro (la que había introducido la spec
+[011](../011-venta-mostrador-constructor-factura/spec.md)) — decisión escalada en tres rondas
+sucesivas de Clarifications el 2026-08-28. La spec
+[112](../112-fix-cobro-pago-mixto/spec.md) reintroduce esa capacidad, ahora con reglas nuevas que
+spec 046 no tenía: máximo 3 líneas de pago por cobro, suma exacta contra el total (incluyendo
+cargos como domicilio), vuelto calculado y descontado del cierre de caja solo sobre la porción en
+efectivo, un único método (efectivo) puede recibir más dinero del asignado, y cada línea de pago
+no efectivo admite una referencia opcional. El modelo de datos (`Payment` 1:N por `Sale`) y el
+endpoint de cobro (`PayIn.payments: list[PaymentIn]`) en `pos-backend` nunca dejaron de soportar
+varias líneas — la restricción a un único método vivía solo en el frontend
+(`PaymentInputComponent`/`payment-draft.util.ts`), así que revertir la decisión no requiere
+deshacer ninguna migración de esquema.
+
+**Por qué cambia**: el negocio (heladería) reporta que hoy el cajero debe registrar con un solo
+método un cobro que el cliente pagó en realidad con dos (p. ej. efectivo + transferencia), lo que
+deja el cierre de caja con datos falsos sobre cuánto entró por cada medio. La eliminación de spec
+046 resolvía otro problema (simplificar el flujo de "Dividir la cuenta" y el bloque de
+confirmación de pago pendiente) pero, como efecto colateral, quitó también la combinación de
+métodos sin reglas de validación claras; spec 112 la reintroduce acotada (tope de 3 líneas, suma
+exacta, vuelto solo en efectivo) para que no reabra el problema original que motivó quitarla.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-11, al redactar `specs/112-fix-cobro-pago-mixto/spec.md`
+a partir de una descripción de producto con reglas de negocio explícitas (RN1-RN12) y escenarios
+Gherkin, confirmado explícitamente durante `/speckit-plan` al preguntársele si la reversión de
+spec 046 era intencional.
+
+**Funcionalidades afectadas**: el panel "Cobrar pedido" (`PaymentInputComponent`,
+`payment-draft.util.ts`, `PosCheckoutPanelComponent` en `pos-heladeria`), compartido entre Mesa,
+Para llevar y Domicilio. No afecta "Dividir la cuenta entre varias personas" (spec 010/036/046),
+que sigue eliminada — spec 112 solo reabre el sub-alcance de métodos de pago combinados, no el
+reparto por comensal. Tampoco afecta el modelo `Payment`/`Sale`, el catálogo de métodos de pago
+por tenant (spec 032), el cierre de caja (spec 006, ya agrupa por método) ni el comprobante del
+pedido (ya itera `sale.payments` como lista) en `pos-backend`/`pos-heladeria`: esas capas ya
+soportaban varias líneas de pago y no requieren cambio para esta reversión.
+
+**Riesgo asumido**: ningún flujo de la aplicación dependía de que un cobro tuviera garantizado un
+único `Payment` por `Sale` (el endpoint ya aceptaba una lista); el riesgo principal es de UX —
+que el flujo de un solo método (el caso frecuente) se vuelva más lento o confuso al introducir la
+opción de agregar líneas — por lo que spec 112 exige explícitamente (FR-014) que cobrar con un
+solo método mantenga el mismo número de pasos que hoy.
+
+**Tests afectados**: ninguno de los characterization tests protegidos por el Principio III —
+spec 046 no generó characterization tests sobre la eliminación (era una corrección de UI/UX, no
+un comportamiento heredado desde antes de la modernización). Los tests propios de spec 046 que
+verificaban que el frontend solo permite un método deberán actualizarse como parte de la
+implementación de spec 112, citando esta entrada.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/112-fix-cobro-pago-mixto/spec.md` (RN1-RN12, Historias 1-5, FR-001 a FR-020).
+
+**Estado (2026-10-11)**: REGISTRADA, pendiente de plan técnico e implementación.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
