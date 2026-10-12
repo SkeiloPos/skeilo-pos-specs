@@ -3512,11 +3512,11 @@ contra el backend de desarrollo, no solo por lectura de código. Se emitió un e
 para un usuario del negocio `heladeria` y se abrió desde otros contextos:
 
 | Contexto desde el que se abre el enlace de `heladeria` | Respuesta de `GET /auth/reset-password/validate` |
-|---|---|
-| `heladeria` (el negocio que lo emitió) | `200 {"valid": true}` |
-| `skeilo` (**otro negocio**) | `200 {"valid": true}` |
-| `admin` (administración de la plataforma) | `200 {"valid": true}` |
-| **sin cabecera `X-Tenant-Host` en absoluto** | `200 {"valid": true}` |
+| ------------------------------------------------------ | ------------------------------------------------ |
+| `heladeria` (el negocio que lo emitió)                 | `200 {"valid": true}`                            |
+| `skeilo` (**otro negocio**)                            | `200 {"valid": true}`                            |
+| `admin` (administración de la plataforma)              | `200 {"valid": true}`                            |
+| **sin cabecera `X-Tenant-Host` en absoluto**           | `200 {"valid": true}`                            |
 
 En la interfaz, abrir ese mismo enlace en `skeilo.localhost:4200/reset-password?token=…` muestra la
 insignia `skeilo` y **el formulario completo de contraseña nueva**, habilitado para fijar la
@@ -3553,7 +3553,7 @@ comprobar que al entrar se llega ahí— no habría pasado nunca. **Quién y cu�
 `pos-heladeria`, dos archivos — `core/guards/auth.guard.ts` añade `returnUrl` como parámetro de
 consulta, y `modules/auth/pages/login.component.ts` lo lee al montarse. **El servidor no cambia**
 (FR-044). **Riesgo asumido y cómo se acota**: `returnUrl` llega desde la URL, así que cualquiera
-puede fabricarlo; sin control, la pantalla de inicio de sesión se convertiría en un *open redirect*
+puede fabricarlo; sin control, la pantalla de inicio de sesión se convertiría en un _open redirect_
 hacia un sitio externo. Por eso solo se acepta una ruta **interna**: debe empezar por `/` y no por
 `//` —que el navegador interpreta como relativa al protocolo, es decir, otro host—. Cualquier otro
 valor se ignora y se usa el destino de siempre. **Tests afectados**: ninguno existente se debilita;
@@ -3624,7 +3624,7 @@ acepta a sabiendas — los correos quedan expuestos a filtros de correo no desea
 del pedido (SPF/DKIM/DMARC en "pass" alineados con `skeilopos.com`) **no se cumple** hasta que
 exista la spec de entregabilidad. **Tests afectados**: ninguno; ningún test afirma el remitente.
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/096-correos-transaccionales/spec.md` (D8, FR-011) y su sección *Fuera de Alcance*.
+`specs/096-correos-transaccionales/spec.md` (D8, FR-011) y su sección _Fuera de Alcance_.
 
 **Estado (2026-10-06)**: IMPLEMENTADA. `MAIL_FROM_NAME` pasó de `"Mi app"` a `"SkeiloPOS"` en
 `pos-backend/.env` de desarrollo. **Pendiente al desplegar**: cambiar el secreto equivalente en el
@@ -3638,8 +3638,8 @@ entorno de producción — fuera del alcance de este repositorio.
 alta de un negocio por parte del Super Admin (`app/api/v1/super_admin/router.py:145-153`, vía
 Celery) pasa a enviar **la misma plantilla que una invitación de usuario**. Hoy son dos maquetas
 distintas con el contenido idéntico —URL de ingreso, usuario y contraseña generada— y con un texto
-de cierre diferente: la de bienvenida dice *"te recomendamos cambiar tu contraseña después de
-iniciar sesión por primera vez"*, mientras la de invitación informa que es obligatorio.
+de cierre diferente: la de bienvenida dice _"te recomendamos cambiar tu contraseña después de
+iniciar sesión por primera vez"_, mientras la de invitación informa que es obligatorio.
 **Por qué cambia**: dos razones. La primera es de presentación: sin este cambio, el correo del alta
 de negocio quedaría como el único de los cuatro sin la marca del producto, y es justamente el
 primero que ve un cliente que acaba de contratar. La segunda es de exactitud, y se verificó en el
@@ -3786,7 +3786,7 @@ ya protege el escape del nombre de la persona (incluido el caso del apóstrofo, 
 debe seguir protegiéndolo; no existe ningún test que cubra el escape de los otros valores, y la spec
 pide añadirlos. **Clasificación**: HALLAZGO. **Tratamiento acordado**:
 `specs/096-correos-transaccionales/spec.md` (FR-040, FR-041, SC-004, y la fila correspondiente de
-*Contexto y Encuadre*).
+_Contexto y Encuadre_).
 
 **Estado (2026-10-06)**: CORREGIDA por FR-040 con esta implementación. `_campos.escapar_valores`
 es el único punto por el que pasa todo valor dinámico antes de insertarse en HTML — ya no es una
@@ -3817,7 +3817,7 @@ correos. La limpieza del archivo de entorno —una sola asignación por variable
 un modo de envío inerte para desarrollo— es trabajo propio, candidato natural a la spec de
 entregabilidad que A-114 ya anticipa. **Tests afectados**: ninguno; los tests del backend simulan el
 envío y no contactan el servicio. **Clasificación**: HALLAZGO.
-**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (*Assumptions*, verificación
+**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (_Assumptions_, verificación
 con envío real) y [`registro-riesgos.md`](./registro-riesgos.md) **R20**, que ya describe el
 microservicio de correo externo como dependencia fuera del control del repositorio.
 
@@ -4036,417 +4036,64 @@ implementación de spec 112, citando esta entrada.
 
 ---
 
-### A-125 — [DECISIÓN DE NEGOCIO — spec 115] El resumen del borrador de la orden manual deja de mostrar la fila "Descuento"; el Subtotal se mantiene
+### A-125 — [DECISIÓN DE NEGOCIO — spec 113] El saldo inicial de un turno de caja deja de aceptar cero: pasa a exigirse estrictamente mayor a cero
 
-**Qué cambia**: en el resumen de la orden manual en borrador (`manual-order-page.component.ts`,
-panel "Crear pedido"), se deja de pasar el input `[discount]` a `app-bill-summary` — la fila
-"Descuento" (que restaba el importe del subtotal) desaparece. El "Subtotal" sigue mostrando el
-importe bruto de las líneas (sin descuento) y el "TOTAL ORDEN" sigue mostrando el importe ya
-resuelto por el backend con el descuento aplicado — solo cambia qué fila se muestra entre esos dos
-números, no el cálculo de ninguno de los dos.
+**Qué cambia**: hoy el sistema permite **explícitamente** abrir un turno de caja con saldo inicial
+(`opening_amount`) en `0` — no es un vacío accidental, sino un comportamiento intencional en las
+tres capas: el schema `ShiftOpen` del backend (`app/api/v1/cash/schemas.py`) usa
+`Field(0, ge=0, ...)` (cero como valor por defecto y como mínimo permitido), la tabla
+`cash_shifts` tiene `CheckConstraint("opening_amount >= 0", name="ck_cash_shift_opening_positive")`
+a nivel de base de datos, y el formulario de apertura de caja de `pos-heladeria`
+(`cash-open.component.ts`) no valida el campo del saldo inicial más allá de exigir una caja
+seleccionada. La spec [113](../113-validacion-saldo-inicial-caja/spec.md) cambia esa regla a
+`opening_amount > 0`, estrictamente mayor a cero, exigida en las tres capas: formulario (botón
+deshabilitado + mensaje inline, sin esperar interacción del usuario), endpoint de apertura (`422`
+con mensaje explícito en español, sin crear el turno) y base de datos (el `CheckConstraint` se
+endurece de `>= 0` a `> 0`).
 
-**Por qué cambia**: al probar la spec [115](../115-tab-promociones-pedido-manual/spec.md)
-(pestaña "Promociones"), se detectó que `cartLinePromo()` (la insignia/tachado por línea del
-carrito, en `pos-terminal.store.ts`) nunca se activa para promociones de precio de paquete con
-cantidad mínima > 1 (como "2 x $15.000") porque depende de `variant.discounted_price`, campo que
-el backend solo puebla para descuentos simples de `min_qty = 1` (ver el comentario de
-`product-select.component.ts` sobre `discounted_price`, spec 081). El resultado visible era una
-línea de producto sin ninguna marca de promoción, seguida de una fila "Descuento" genérica que no
-explicaba de dónde salía — confuso para el cajero, que ve un número restarse sin saber por qué.
-El dueño del producto pidió, en vivo durante la implementación de la spec 115, ocultar esa fila y
-mantener el Subtotal tal como está.
+**Por qué cambia**: el negocio reporta que un saldo inicial en cero (el valor por defecto del
+campo, fácil de dejar sin tocar por un cajero apurado) invalida el arqueo de cierre desde el
+origen — el turno queda abierto sin que el cajero haya declarado la base real de efectivo
+entregada, lo que genera diferencias en el cierre que no corresponden a una venta/movimiento real
+sino a que nunca se registró el fondo con el que se empezó. Permitir `0` no resuelve ningún caso
+de negocio legítimo (un turno nunca abre sin efectivo físico en el cajón) — es simplemente el
+valor por defecto del campo nunca haber sido validado.
 
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, durante la implementación de
-`specs/115-tab-promociones-pedido-manual/`.
+**Quién y cuándo**: Deimer Hernandez, 2026-10-12, al redactar
+`specs/113-validacion-saldo-inicial-caja/spec.md` (sección "Contexto y comportamiento actual",
+Clarifications, FR-008), confirmado explícitamente durante `/speckit-plan` al preguntársele si la
+decisión de exigir `opening_amount > 0` sin excepción para todo turno nuevo debía registrarse
+ahora, antes de continuar con el diseño técnico.
 
-**Funcionalidades afectadas**: únicamente el panel "Crear pedido" de
-`manual-order-page.component.ts` (el único `<app-bill-summary>` de ese archivo que pasaba
-`[discount]`; el otro, en la rama `@else` para cuando el draft-preview aún no respondió, ya no lo
-pasaba desde antes). `BillSummaryComponent` en sí **no se modifica** — sigue siendo compartido con
-`pos-checkout-panel`, `payment-attempt-review-panel` y `session-bill-panel`, que siguen mostrando
-su fila "Descuento" sin cambio porque la siguen pasando explícitamente; el input ya tenía su
-propio default (`discount = 0`) y la fila ya era condicional (`@if (discount > 0)`), así que
-dejar de pasarlo en un solo sitio no afecta a los demás.
+**Funcionalidades afectadas**: solo la apertura de turno de caja (`POST /shifts/open` y la pantalla
+"Abrir caja" en `pos-heladeria`). No afecta el cierre de turno, el arqueo, los movimientos de
+efectivo (ingreso/egreso/retiro) ni ningún otro campo de `CashShift` — todos exigen hoy valores
+mayores a cero por su cuenta (`DenominationIn.denomination`, `CashMovementIn.amount`) y no se
+tocan. Tampoco afecta ningún turno ya abierto o cerrado antes de desplegar este cambio (FR-007):
+la validación aplica únicamente hacia adelante.
 
-**Riesgo asumido**: ninguno sobre el cálculo — el "TOTAL ORDEN" ya mostraba, antes y después de
-este cambio, el importe correcto que resuelve el backend (`draftPreview().total`); lo único que
-cambia es la fila intermedia que explicaba la resta.
+**Riesgo asumido**: ninguna integración externa documentada depende de poder abrir un turno con
+`opening_amount = 0` — es el valor por defecto sin validar, no un caso de uso declarado. El
+`CheckConstraint` nuevo se agrega con `NOT VALID` en PostgreSQL (ver
+`specs/113-validacion-saldo-inicial-caja/data-model.md`) precisamente para no recalcular ni
+rechazar ningún turno histórico que ya tenga `opening_amount = 0` — esos registros permanecen
+intactos, consistente con el Principio VII.
 
-**Tests afectados**: `manual-order-page.component.spec.ts`, describe "ManualOrderPageComponent —
-desglose del borrador (spec 073, US5)" — el test "Scenario 2: 2 conos → Subtotal 16.000 /
-Descuento −8.000 / Total 8.000" se actualiza para dejar de esperar el texto "Descuento", citando
-esta entrada.
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (ampliación de alcance sobre la marcha; se registra
-aquí porque modifica un comportamiento introducido por la spec 073, no por la 115).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
-**Actualización 2026-10-12 (misma sesión, tras revisar el resultado en un entorno real)**: lo que
-se había documentado arriba como "mejora futura fuera de alcance" (arreglar `cartLinePromo()` para
-que la insignia por línea funcione con promociones de paquete) se pidió explícitamente y **también
-se implementó** en la misma sesión. `cartLinePromo()` (`pos-terminal.store.ts`) dejó de depender
-exclusivamente de `variant.discounted_price` (que solo existe para `min_qty == 1`): cuando
-`promo.min_qty > 1` usa `packagePrice()`, extraída de `product-select.component.ts` al util
-compartido `promotion-pricing.util.ts` (mismo cálculo por bloques que ya usaba el modal de
-selección, sin duplicarlo). Con esto, la línea del carrito de una promoción de paquete ("2 x
-$15.000") muestra la misma insignia/tachado/"Ahorras $X" que ya mostraba el modal — no solo el
-resumen de abajo. Tests nuevos en `promotion-pricing.util.spec.ts` (función `packagePrice`),
-`pos-terminal.store.spec.ts` (`cartView — promo por línea`, dos casos nuevos con `min_qty > 1`) y
-`manual-order-page.component.spec.ts` (caso nuevo reproduciendo el reporte exacto). Dos tests
-existentes con fixtures que combinaban `min_qty: 2` + `discounted_price` (una combinación que el
-backend real nunca produce) se corrigieron para usar `min_qty: 1` o los campos de regla de paquete
-reales, sin cambiar los importes esperados.
-
----
-
-### A-126 — [DECISIÓN DE NEGOCIO — spec 115] El control +/- de una línea ya agregada al pedido manual SIEMPRE avanza de 1 en 1, incluso con promoción vigente — diverge a propósito del menú QR
-
-**Qué cambia**: en el catálogo de la orden manual (ambos puntos de entrada: crear pedido nuevo y
-"+ Agregar producto" a uno existente), el control +/- de una línea **ya agregada** al pedido deja
-de avanzar en pasos de la cantidad mínima de su regla de promoción (FR-004/FR-006 originales de la
-spec [115](../115-tab-promociones-pedido-manual/spec.md)) y vuelve a avanzar siempre de una unidad
-en una, sin importar si esa línea tiene una promoción vigente ni cuál sea su cantidad mínima. El
-**primer agregado** desde la pestaña "Promociones" sigue entrando directamente con la cantidad
-mínima de la regla (p. ej. 2 unidades para "2 x $17.000", no 1) — eso **no cambia**: solo se
-revierte el paso forzado en los botones +/- de la línea ya puesta en el pedido.
-
-**Por qué cambia**: la spec 115 replicó literalmente el mecanismo del menú QR
-(`DiningCartService.stepFor()`/`cart.component.ts`), donde el control +/- de una línea en
-promoción también avanza en pasos para proteger al comensal de terminar con una cantidad que no
-califica para el descuento. Al revisar el resultado en un entorno real, el dueño del producto pidió
-explícitamente que el personal (cajero/mesero) tenga control manual total sobre la cantidad ya
-puesta en el pedido: a diferencia del comensal, al que conviene orientar/proteger de un error de
-cantidad, el personal necesita poder ajustarla libremente unidad por unidad en cualquier momento
-(por ejemplo, para quitar o sumar una sola unidad sin que el sistema fuerce un salto de a 2). Este
-es el primer punto donde la orden manual diverge deliberadamente de "las mismas reglas del menú
-QR" pedidas en la solicitud original de la spec 115 — el resto del mecanismo (filtro de la pestaña,
-cantidad mínima al agregar por primera vez) sigue siendo idéntico.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, al revisar la implementación de la spec 115 en un
-entorno real.
-
-**Funcionalidades afectadas**: `PosTerminalStore.incDraft()`/`decDraft()` (`pos-terminal.store.ts`),
-usados por el control +/- de la línea en `manual-order-page.component.ts` y
-`pos-catalog-drawer.component.ts`. Se retira por completo el campo `step` de `ProductDraftLine`
-(ya no se guarda: no hay nada más que lo use). `openConfig(product, fromPromotions)` y
-`configuringProductFromPromotions` **no se tocan** — siguen gobernando que el primer agregado desde
-"Promociones" entre con la cantidad mínima, vía el modal de selección (`ProductSelectComponent`,
-sin cambios, spec 081). El menú QR (`DiningCartService`/`cart.component.ts`) **no se toca**: sigue
-avanzando en pasos para el comensal, como siempre.
-
-**Riesgo asumido**: ninguno sobre el cálculo del descuento — el backend sigue resolviendo el total
-real al guardar/cobrar (`evaluate_variant_sets`) sobre la cantidad que quede en cada línea, sin
-importar si es múltiplo de `min_qty` o no; una cantidad no-múltiplo simplemente no califica para el
-descuento en las unidades que sobran, que es el comportamiento correcto y ya existente. SC-002 y
-SC-004 de la spec 115 (múltiplo garantizado y reglas idénticas al menú QR) quedan acotados al
-momento del primer agregado, no a cualquier estado posterior del pedido — se actualiza su redacción
-en `spec.md`.
-
-**Tests afectados**: en `pos-terminal.store.spec.ts`, el describe "PosTerminalStore —
-openConfig(fromPromotions) / step de cantidad (spec 115)" pierde los casos sobre el campo `step`
-(T022/T025/T027/T029 originales) y gana dos casos que confirman `incDraft`/`decDraft` siempre de 1
-en 1, citando esta entrada.
+**Tests afectados**: ningún test `"CONGELA comportamiento actual:"` protege específicamente que
+`opening_amount = 0` sea aceptado (verificado por `grep` sobre
+`app/characterization_tests/`) — `test_cash_timezone.py` usa `0` solo como relleno arbitrario para
+probar serialización de zona horaria vía `ShiftResponse.model_construct()`, que no pasa por
+`ShiftOpen` ni por la base de datos, y no se ve afectado. Las funciones auxiliares
+`make_cash_shift()` en `cart_fixtures.py`, `orders_fixtures.py` y `table_sessions_fixtures.py` —que
+solo usan `opening_amount=0` como valor de relleno para levantar un turno abierto en pruebas de
+otros módulos, sin que ningún test verifique ese valor específicamente— cambian su valor por
+defecto a uno positivo como parte de la implementación de spec 113, citando esta entrada.
 
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (revierte parcialmente FR-004/FR-006 tal como se
-habían especificado e implementado inicialmente, dentro de la misma spec).
+`specs/113-validacion-saldo-inicial-caja/spec.md` (FR-001 a FR-009),
+`specs/113-validacion-saldo-inicial-caja/research.md` (D1-D5).
 
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-127 — [DECISIÓN DE NEGOCIO — spec 115] "Subtotal" de la orden manual en borrador se muestra ya neto (con el descuento aplicado), no bruto
-
-**Qué cambia**: en el mismo resumen de la orden manual en borrador que tocó A-125 (panel "Crear
-pedido" de `manual-order-page.component.ts`), el valor que se pasa como `[subtotal]` a
-`app-bill-summary` deja de ser el subtotal bruto del backend (`p.subtotal`) y pasa a ser ese mismo
-subtotal **ya menos el descuento** (`p.subtotal - p.discount`, más `store.combosSubtotal()` igual
-que antes). Cuando hay una promoción vigente que ya resolvió el backend, "Subtotal" y
-"TOTAL ORDEN" muestran ahora el mismo importe neto (si no hay costo de domicilio) — antes
-"Subtotal" se quedaba en el bruto (p. ej. $16.000) mientras "TOTAL ORDEN" ya mostraba el neto (p.
-ej. $15.000), una inconsistencia frente a la línea del producto, que desde A-125 ya muestra el
-precio con descuento tachado/en rojo.
-
-**Por qué cambia**: tras A-125 (ocultar la fila "Descuento") y la corrección de la insignia por
-línea, quedó una inconsistencia nueva: la línea de "ojo de diablo" mostraba $15.000 (ya con
-descuento), pero el "Subtotal" de abajo seguía en $16.000 (bruto) — dos cifras distintas para la
-misma mercancía, justo el tipo de confusión que esta spec busca evitar. El dueño del producto pidió
-que "Subtotal" también refleje el precio ya con descuento, para que coincida con lo que cada línea
-ya muestra.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, al revisar el resultado de A-125 en un entorno
-real.
-
-**Funcionalidades afectadas**: únicamente el binding `[subtotal]` del mismo `<app-bill-summary>`
-que tocó A-125, en `manual-order-page.component.ts` (línea ~754). No afecta `BillSummaryComponent`
-en sí, ni ninguna otra pantalla que lo use (`pos-checkout-panel`, `payment-attempt-review-panel`,
-`session-bill-panel`), que siguen pasando su propio subtotal sin cambio. La rama `@else` (sin
-`draftPreview` todavía resuelto) tampoco cambia: no tiene ningún descuento que restar ahí.
-
-**Riesgo asumido**: ninguno sobre el cálculo — `p.subtotal` y `p.discount` ya los resuelve el
-backend; esta decisión solo cambia la resta que arma la pantalla, no introduce ningún cálculo
-nuevo en el frontend. Cuando hay costo de domicilio, "Subtotal" (neto, sin domicilio) y
-"TOTAL ORDEN" (neto + domicilio) sí difieren, como es de esperar.
-
-**Tests afectados**: `manual-order-page.component.spec.ts` — el test de A-125/A-125 "Scenario 2"
-se actualiza para esperar que el bruto (16.000) ya NO aparezca en el resumen (antes sí, como
-"Subtotal"); test nuevo que reproduce el reporte exacto ("ojo de diablo", Subtotal y
-TOTAL ORDEN ambos 15.000). Ambos acotan sus aserciones al elemento `app-bill-summary` (no a toda
-la página), porque el costo bruto de otra línea sin promoción puede coincidir por casualidad con
-una de las cifras que antes se buscaban.
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (continúa/ajusta A-125 dentro de la misma spec).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-128 — [DECISIÓN DE NEGOCIO — spec 115] Un ítem ya persistido pero aún sin cobrar ("Pendiente") también estima la insignia/tachado de promoción, aunque el backend todavía no congeló `discounted_unit_price`
-
-**Qué cambia**: en el panel de un pedido ya creado (`pos-order-panel.component.ts`), un ítem en
-estado "Pendiente" (recién enviado a cocina, aún no cobrado) muestra la misma insignia/tachado/
-"Ahorras $X" que ya muestra una línea de borrador (A-125/T047) cuando esa variante tiene una
-promoción vigente en el catálogo — antes, mientras `discounted_unit_price` seguía sin congelar
-(solo se congela al cobrar, `checkout_and_send`), la línea se veía a precio de lista completo, sin
-ninguna marca, aunque hubiera una promoción de paquete aplicable.
-
-**Por qué cambia**: `persistedLinePromo()` (`pos-terminal.store.ts`) solo sabía construir la
-insignia a partir de `discounted_unit_price`, un campo que el backend dejó así a propósito desde
-spec 063 (FR-023): un pedido manual nace `hold_for_payment` sin ningún descuento congelado
-todavía — `OrderItem` solo guarda `unit_price` al crearse (`pos-backend/app/api/v1/orders/service.py`);
-el descuento real se resuelve recién en `checkout_and_send`, al cobrar, el mismo punto único de
-descuento que usa el flujo QR. El dueño del producto, al revisar la pantalla de un pedido
-"Pendiente" con una línea en promoción de paquete, pidió el mismo tratamiento visual que ya tiene
-la línea de borrador: mostrar el valor neto estimado y el mismo formato de promoción, en vez de
-esperar hasta el cobro para que aparezca cualquier indicio de descuento.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, al revisar un pedido ya creado con una línea en
-promoción en un entorno real.
-
-**Funcionalidades afectadas**: `MenuLookup` (`menu-lookup.ts`) gana un método nuevo,
-`variantPromotion(variantId)`, que expone la promoción vigente de una variante del catálogo (ya
-indexada, antes sin exponer) — lo usan `pos-terminal.store.ts`. `persistedLinePromo()` gana un
-quinto parámetro opcional `catalogPromo`: cuando `discounted_unit_price` es `null`, si
-`catalogPromo` existe y la cantidad de la línea ya alcanza su `min_qty`, ESTIMA la insignia con
-`packagePrice()` (el mismo cálculo por bloques que ya usa `cartLinePromo()`, T047) en vez de
-devolver `null`. **No se persiste ni se envía nada al backend**: es puramente una estimación de
-pantalla con datos del catálogo ya cargado, igual que la que ya existe para las líneas de borrador
-desde A-125. Ningún otro consumidor de `MenuLookup` ni de `persistedLinePromo()` cambia de
-comportamiento cuando no aplica esta rama nueva (sin promoción en catálogo, o ya con
-`discounted_unit_price` congelado tras cobrar).
-
-**Riesgo asumido**: la estimación puede diferir del importe real si la promoción cambia (se pausa,
-vence, o se edita su regla) entre que el pedido se crea y se cobra — mismo riesgo ya aceptado y
-documentado para la estimación de líneas de borrador (A-125/spec 081); el importe que efectivamente
-se cobra lo sigue resolviendo el backend al cobrar, sin excepción.
-
-**Tests afectados**: `menu-lookup.spec.ts` (2 casos nuevos para `variantPromotion`),
-`pos-order-panel.component.spec.ts` (2 casos nuevos: con promoción de catálogo sin
-`discounted_unit_price` → insignia estimada; sin promoción → sin insignia, sin cambio).
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (extiende A-125 al panel de un pedido ya existente).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-129 — [DECISIÓN DE NEGOCIO — spec 115] La insignia de promoción de un ítem del panel de pedido cambia de esquema rojo/"Ahorras" a indigo, igual que el modal de selección
-
-**Qué cambia**: en el panel de un pedido ya creado (`pos-order-panel.component.ts`), el formato
-visual de la promoción de una línea (draft o persistida, con o sin `discounted_unit_price`
-congelado) deja de usar el esquema rojo (`#fee2e2`/`#dc2626`) con el sufijo " Promoción" junto al
-nombre y una fila aparte con el original tachado + una píldora verde "✓ Ahorras $X", y pasa a
-reproducir el mismo formato que ya usa el modal de selección de producto
-(`product-select.component.ts`, `data-testid="variant-promo"`): una insignia indigo
-(`#e0e7ff`/`#4338ca`) con solo la condición (p. ej. "2 x $15.000", sin la palabra "Promoción"),
-debajo del nombre, y el precio tachado + el precio con descuento (en indigo, `#4f46e5`) juntos en
-la misma línea, en vez de en filas separadas. La píldora "Ahorras $X" se retira por completo — la
-misma información ya se desprende de ver el tachado junto al nuevo precio, igual que en el modal.
-
-**Por qué cambia**: tras A-128 (estimar la insignia también en ítems "Pendiente"), el dueño del
-producto comparó la insignia resultante contra la del modal de selección (la misma promoción,
-dos pantallas distintas) y señaló que no coincidían — un comensal o cajero que ve primero el
-modal y luego el panel del pedido encuentra dos lenguajes visuales distintos para el mismo
-concepto. Pidió que el panel reproduzca el formato del modal.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, comparando ambas pantallas en un entorno real.
-
-**Funcionalidades afectadas**: únicamente el bloque de plantilla de `it.promo` en
-`pos-order-panel.component.ts` (líneas ~206-248) — aplica a toda línea con promoción en ese panel,
-sea un draft nuevo, un ítem "Pendiente" estimado (A-128) o un ítem ya cobrado con
-`discounted_unit_price` congelado (spec 089), porque las tres comparten el mismo bloque de
-plantilla. No se toca `CartLinePromo` ni ningún cálculo (`cartLinePromo()`/`persistedLinePromo()`),
-solo cómo se pinta. `manual-order-page.component.ts` tiene su propio bloque de plantilla (esquema
-ámbar, sin "Ahorras") que **no se toca** — no se pidió explícitamente y no es el mismo archivo.
-
-**Riesgo asumido**: ninguno sobre el cálculo — cambio puramente visual. Ningún test existente
-verificaba las clases de color ni el texto "Promoción"/"Ahorras" en el DOM (solo los valores
-numéricos de `row.promo` vía el store), así que ningún test se rompió por el cambio de plantilla.
-
-**Tests afectados**: `pos-order-panel.component.spec.ts` — test nuevo que confirma que la
-insignia (la condición tal cual la arma el store) aparece en el DOM y que "Promoción"/"Ahorras"
-ya no aparecen.
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (continúa A-128 dentro de la misma spec).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-130 — [DECISIÓN DE NEGOCIO — spec 115] El subtítulo "{{ qty }} × ..." de una línea en promoción del panel de pedido pasa a mostrar el precio neto por unidad, no el precio de lista
-
-**Qué cambia**: en `pos-order-panel.component.ts`, el subtítulo "{{ qty }} × $precio" que
-acompaña el importe de cada línea deja de mostrar siempre `it.unitPrice` (precio de lista) y,
-cuando la línea tiene una promoción (`it.promo`), pasa a mostrar el precio neto por unidad
-(`(promo.discountedAmount - addonsTotal) / qty`) — p. ej. "2 × $7.500" en vez de "2 × $8.000"
-para una línea de $15.000 con 2 unidades.
-
-**Por qué cambia**: tras A-129, la línea mostraba el importe neto tachado/en indigo arriba
-($15.000) pero el subtítulo justo debajo seguía anclado al precio de lista ($8.000 × 2 = $16.000)
-— dos números que, puestos uno encima del otro, no cuadraban entre sí para la misma línea
-(2 × $8.000 ≠ $15.000). El dueño del producto lo señaló al comparar ambas cifras.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, en la misma revisión que motivó A-129.
-
-**Funcionalidades afectadas**: solo el subtítulo de cantidad de `pos-order-panel.component.ts`
-(nuevo método `netUnitPrice()`). `it.unitPrice`/`it.subtotal` de la línea **no cambian** — siguen
-a precio de lista completo a propósito (FR-023, spec 063); esta decisión es puramente de qué
-número se pinta en ese subtítulo, no del dato subyacente. Líneas sin promoción siguen mostrando
-`it.unitPrice` tal cual, sin cambio.
-
-**Riesgo asumido**: ninguno sobre el cálculo — es una división derivada de un número que el
-propio store ya resolvía (`promo.discountedAmount`), no un cálculo nuevo. Con una línea cuya
-cantidad no es múltiplo exacto de la cantidad mínima de su regla (posible desde A-126, que
-permite ajustar la cantidad libremente), el precio por unidad mostrado es un promedio entre las
-unidades a precio de paquete y las que no completan uno — aceptado, es solo un subtítulo
-informativo, no el importe que se cobra.
-
-**Tests afectados**: `pos-order-panel.component.spec.ts` — test nuevo que confirma "2 × $7.500"
-en vez de "2 × $8.000" para la línea del reporte.
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (continúa A-129 dentro de la misma spec).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-131 — [DECISIÓN DE NEGOCIO — spec 115] El panel de cobro (`pos-checkout-panel.component.ts`) también deja de mostrar la fila "Descuento"; "Subtotal" se muestra ya neto
-
-**Qué cambia**: igual que A-125/A-127 hicieron para el resumen de la orden manual en borrador,
-el panel de cobro (`pos-checkout-panel.component.ts`, el que muestra "Facturar a nombre de" +
-el desglose antes de "Cobrar") deja de pasar `[discount]` a `app-bill-summary`, y `[subtotal]`
-pasa de `+p.subtotal` a `+p.subtotal - +p.discount` (ya neto). El "Total" no cambia.
-
-**Por qué cambia**: es el mismo patrón exacto de A-125/A-127, pero en una tercera pantalla
-(`pos-checkout-panel.component.ts`) que tiene su **propio** binding de `<app-bill-summary>`,
-independiente del de `manual-order-page.component.ts` — no se había corregido ahí todavía. El
-dueño del producto lo encontró al llegar al paso de cobro con una línea en promoción.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, en la misma revisión que motivó A-129/A-130.
-
-**Funcionalidades afectadas**: únicamente el binding de `<app-bill-summary>` en
-`pos-checkout-panel.component.ts` (líneas ~282-290). `BillSummaryComponent` en sí no cambia;
-`payment-attempt-review-panel` y `session-bill-panel` siguen mostrando su fila "Descuento" sin
-cambio, igual que ya quedó establecido en A-125.
-
-**Riesgo asumido**: ninguno sobre el cálculo — mismo razonamiento que A-127: `p.subtotal` y
-`p.discount` ya los resuelve el backend (`checkoutPreview()`), esto solo cambia la resta que
-arma la pantalla.
-
-**Tests afectados**: `pos-checkout-panel.component.spec.ts` — "FR-004" (Scenario 1) y "US3
-Scenario 3" se actualizan para esperar a que "Descuento" y el bruto (16.000) ya no aparezcan, y
-que "Subtotal" quede en el importe neto, citando esta entrada.
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (continúa A-125/A-127 en una tercera pantalla).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-132 — [DECISIÓN DE NEGOCIO — spec 115] "Cuenta de la mesa" (`session-bill-panel.component.ts`) deja de mostrar "Descuento" en sus dos resúmenes — "Ya pagado" y "Total a cobrar"
-
-**Qué cambia**: en `session-bill-panel.component.ts` ("Cuenta de la mesa"), los dos bloques que
-pasaban `[discount]` a `app-bill-summary` dejan de hacerlo: el resumen "Ya pagado"
-(`pagado.subtotal`/`pagado.discount`/`pagado.total`) y el resumen "Total a cobrar"
-(`summary.subtotal`/`summary.discount`, etiquetado "Subtotal mesa"). En ambos, `[subtotal]` pasa
-a calcularse ya neto (`subtotal - discount`), sin ninguna fila "Descuento" de por medio — mismo
-patrón exacto que A-125/A-127 (resumen de la orden manual) y A-131 (panel de cobro).
-
-**Por qué cambia**: el dueño del producto encontró la misma inconsistencia (fila "Descuento" +
-"Subtotal" bruto que no cuadra con el resto de la pantalla) en una cuarta pantalla distinta —
-"Cuenta de la mesa", tanto en su sección "Ya pagado" como en la de lo pendiente por cobrar. Se
-corrigen ambas de una vez por estar en el mismo archivo y bajo la misma pantalla, aunque solo se
-mostró explícitamente la de "Ya pagado" — dejarlas inconsistentes entre sí dentro de la misma
-pantalla habría sido peor que corregir ambas.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, al revisar "Cuenta de la mesa" tras A-131.
-
-**Funcionalidades afectadas**: únicamente los dos bindings de `<app-bill-summary>` en
-`session-bill-panel.component.ts` (líneas ~64-71 y ~97-104). `BillSummaryComponent`,
-`billSummary()` y el `@Input() paidSummary` no cambian de forma ni de origen de datos —
-siguen resolviendo `subtotal`/`discount` exactamente igual, solo cambia qué resta la plantilla.
-`payment-attempt-review-panel.component.ts` y `orders/pages/order-detail.component.ts` (que
-también pasan `[discount]` a un resumen) **no se tocan** — no se pidieron, y
-`order-detail.component.ts` en particular tiene su propia decisión de negocio ya establecida
-sobre visibilidad de descuento (A-106, spec 094) que no corresponde alterar sin que se pida.
-
-**Riesgo asumido**: ninguno sobre el cálculo — mismo razonamiento que A-127/A-131: los números ya
-los resuelve el backend, esto solo cambia la resta que arma cada plantilla.
-
-**Tests afectados**: `session-bill-panel.component.spec.ts` — "resumen agregado
-Subtotal/Descuento" (con descuento) y "con paidSummary muestra su Subtotal/Descuento/Total" se
-actualizan para esperar que "Descuento" y el bruto ya no aparezcan, con Subtotal ya neto,
-citando esta entrada.
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (continúa A-125/A-127/A-131 en una cuarta pantalla).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
-
----
-
-### A-133 — [DECISIÓN DE NEGOCIO — spec 115] Se revierte A-130: con promoción, el subtítulo "{{ qty }} × ..." se quita por completo en vez de mostrar un precio neto promediado
-
-**Qué cambia**: en `pos-order-panel.component.ts`, el subtítulo "{{ qty }} × $precio" que A-130
-había corregido para mostrar el precio neto por unidad deja de mostrarse por completo cuando la
-línea tiene una promoción (`it.promo`) — ni el precio de lista (como antes de A-130) ni el
-precio neto promediado (como dejó A-130). Sin promoción, sigue mostrándose igual que siempre
-(`it.unitPrice`, sin cambio). El método `netUnitPrice()` agregado por A-130 se retira por quedar
-sin ningún uso.
-
-**Por qué cambia**: A-130 asumía que dividir `promo.discountedAmount` entre la cantidad daba un
-precio por unidad representativo, pero eso solo es exacto cuando la cantidad es múltiplo exacto
-de la cantidad mínima de la regla. Con una cantidad que no completa un paquete entero (posible
-desde A-126, que permite ajustar la cantidad libremente de a 1) el resultado es un promedio entre
-unidades a precio de paquete y unidades a precio normal (p. ej. "3 × $7.667" para 3 unidades de
-una regla "2 x $15.000") — un número que no corresponde a ningún precio real que se vaya a cobrar,
-más confuso que útil. El dueño del producto, al verlo en ese caso, pidió quitarlo del todo para
-líneas en promoción en vez de intentar arreglarlo.
-
-**Quién y cuándo**: Deimer Hernandez, 2026-10-12, al revisar una línea con cantidad ajustada a un
-valor que no completa un paquete exacto.
-
-**Funcionalidades afectadas**: únicamente el bloque de plantilla de `it.promo` en
-`pos-order-panel.component.ts` (antes T052/A-130). Sin promoción, el comportamiento es idéntico
-al que ya había antes de A-130.
-
-**Riesgo asumido**: ninguno — se retira información, no se agrega ningún cálculo nuevo.
-
-**Tests afectados**: `pos-order-panel.component.spec.ts` — el test de A-130 se reemplaza por uno
-que confirma que "{{ qty }} × ..." no aparece en absoluto con promoción (y uno nuevo que confirma
-que sigue apareciendo sin promoción, sin cambio).
-
-**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/115-tab-promociones-pedido-manual/` (revierte A-130 dentro de la misma spec).
-
-**Estado (2026-10-12)**: IMPLEMENTADA.
+**Estado (2026-10-12)**: REGISTRADA, pendiente de plan técnico e implementación.
 
 ---
 
