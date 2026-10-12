@@ -4036,7 +4036,7 @@ implementación de spec 112, citando esta entrada.
 
 ---
 
-### A-125 — [DECISIÓN DE NEGOCIO — spec 113] El saldo inicial de un turno de caja deja de aceptar cero: pasa a exigirse estrictamente mayor a cero
+### A-125 — [DECISIÓN DE NEGOCIO — spec 114] El saldo inicial de un turno de caja deja de aceptar cero: pasa a exigirse estrictamente mayor a cero
 
 **Qué cambia**: hoy el sistema permite **explícitamente** abrir un turno de caja con saldo inicial
 (`opening_amount`) en `0` — no es un vacío accidental, sino un comportamiento intencional en las
@@ -4045,7 +4045,7 @@ tres capas: el schema `ShiftOpen` del backend (`app/api/v1/cash/schemas.py`) usa
 `cash_shifts` tiene `CheckConstraint("opening_amount >= 0", name="ck_cash_shift_opening_positive")`
 a nivel de base de datos, y el formulario de apertura de caja de `pos-heladeria`
 (`cash-open.component.ts`) no valida el campo del saldo inicial más allá de exigir una caja
-seleccionada. La spec [113](../113-validacion-saldo-inicial-caja/spec.md) cambia esa regla a
+seleccionada. La spec [114](../114-validacion-saldo-inicial-caja/spec.md) cambia esa regla a
 `opening_amount > 0`, estrictamente mayor a cero, exigida en las tres capas: formulario (botón
 deshabilitado + mensaje inline, sin esperar interacción del usuario), endpoint de apertura (`422`
 con mensaje explícito en español, sin crear el turno) y base de datos (el `CheckConstraint` se
@@ -4060,7 +4060,7 @@ de negocio legítimo (un turno nunca abre sin efectivo físico en el cajón) —
 valor por defecto del campo nunca haber sido validado.
 
 **Quién y cuándo**: Deimer Hernandez, 2026-10-12, al redactar
-`specs/113-validacion-saldo-inicial-caja/spec.md` (sección "Contexto y comportamiento actual",
+`specs/114-validacion-saldo-inicial-caja/spec.md` (sección "Contexto y comportamiento actual",
 Clarifications, FR-008), confirmado explícitamente durante `/speckit-plan` al preguntársele si la
 decisión de exigir `opening_amount > 0` sin excepción para todo turno nuevo debía registrarse
 ahora, antes de continuar con el diseño técnico.
@@ -4075,7 +4075,7 @@ la validación aplica únicamente hacia adelante.
 **Riesgo asumido**: ninguna integración externa documentada depende de poder abrir un turno con
 `opening_amount = 0` — es el valor por defecto sin validar, no un caso de uso declarado. El
 `CheckConstraint` nuevo se agrega con `NOT VALID` en PostgreSQL (ver
-`specs/113-validacion-saldo-inicial-caja/data-model.md`) precisamente para no recalcular ni
+`specs/114-validacion-saldo-inicial-caja/data-model.md`) precisamente para no recalcular ni
 rechazar ningún turno histórico que ya tenga `opening_amount = 0` — esos registros permanecen
 intactos, consistente con el Principio VII.
 
@@ -4087,11 +4087,11 @@ probar serialización de zona horaria vía `ShiftResponse.model_construct()`, qu
 `make_cash_shift()` en `cart_fixtures.py`, `orders_fixtures.py` y `table_sessions_fixtures.py` —que
 solo usan `opening_amount=0` como valor de relleno para levantar un turno abierto en pruebas de
 otros módulos, sin que ningún test verifique ese valor específicamente— cambian su valor por
-defecto a uno positivo como parte de la implementación de spec 113, citando esta entrada.
+defecto a uno positivo como parte de la implementación de spec 114, citando esta entrada.
 
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/113-validacion-saldo-inicial-caja/spec.md` (FR-001 a FR-009),
-`specs/113-validacion-saldo-inicial-caja/research.md` (D1-D5).
+`specs/114-validacion-saldo-inicial-caja/spec.md` (FR-001 a FR-009),
+`specs/114-validacion-saldo-inicial-caja/research.md` (D1-D5).
 
 **Estado (2026-10-12)**: REGISTRADA, pendiente de plan técnico e implementación.
 
