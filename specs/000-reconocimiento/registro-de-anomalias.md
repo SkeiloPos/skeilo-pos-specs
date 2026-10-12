@@ -3512,11 +3512,11 @@ contra el backend de desarrollo, no solo por lectura de código. Se emitió un e
 para un usuario del negocio `heladeria` y se abrió desde otros contextos:
 
 | Contexto desde el que se abre el enlace de `heladeria` | Respuesta de `GET /auth/reset-password/validate` |
-|---|---|
-| `heladeria` (el negocio que lo emitió) | `200 {"valid": true}` |
-| `skeilo` (**otro negocio**) | `200 {"valid": true}` |
-| `admin` (administración de la plataforma) | `200 {"valid": true}` |
-| **sin cabecera `X-Tenant-Host` en absoluto** | `200 {"valid": true}` |
+| ------------------------------------------------------ | ------------------------------------------------ |
+| `heladeria` (el negocio que lo emitió)                 | `200 {"valid": true}`                            |
+| `skeilo` (**otro negocio**)                            | `200 {"valid": true}`                            |
+| `admin` (administración de la plataforma)              | `200 {"valid": true}`                            |
+| **sin cabecera `X-Tenant-Host` en absoluto**           | `200 {"valid": true}`                            |
 
 En la interfaz, abrir ese mismo enlace en `skeilo.localhost:4200/reset-password?token=…` muestra la
 insignia `skeilo` y **el formulario completo de contraseña nueva**, habilitado para fijar la
@@ -3553,7 +3553,7 @@ comprobar que al entrar se llega ahí— no habría pasado nunca. **Quién y cu�
 `pos-heladeria`, dos archivos — `core/guards/auth.guard.ts` añade `returnUrl` como parámetro de
 consulta, y `modules/auth/pages/login.component.ts` lo lee al montarse. **El servidor no cambia**
 (FR-044). **Riesgo asumido y cómo se acota**: `returnUrl` llega desde la URL, así que cualquiera
-puede fabricarlo; sin control, la pantalla de inicio de sesión se convertiría en un *open redirect*
+puede fabricarlo; sin control, la pantalla de inicio de sesión se convertiría en un _open redirect_
 hacia un sitio externo. Por eso solo se acepta una ruta **interna**: debe empezar por `/` y no por
 `//` —que el navegador interpreta como relativa al protocolo, es decir, otro host—. Cualquier otro
 valor se ignora y se usa el destino de siempre. **Tests afectados**: ninguno existente se debilita;
@@ -3624,7 +3624,7 @@ acepta a sabiendas — los correos quedan expuestos a filtros de correo no desea
 del pedido (SPF/DKIM/DMARC en "pass" alineados con `skeilopos.com`) **no se cumple** hasta que
 exista la spec de entregabilidad. **Tests afectados**: ninguno; ningún test afirma el remitente.
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/096-correos-transaccionales/spec.md` (D8, FR-011) y su sección *Fuera de Alcance*.
+`specs/096-correos-transaccionales/spec.md` (D8, FR-011) y su sección _Fuera de Alcance_.
 
 **Estado (2026-10-06)**: IMPLEMENTADA. `MAIL_FROM_NAME` pasó de `"Mi app"` a `"SkeiloPOS"` en
 `pos-backend/.env` de desarrollo. **Pendiente al desplegar**: cambiar el secreto equivalente en el
@@ -3638,8 +3638,8 @@ entorno de producción — fuera del alcance de este repositorio.
 alta de un negocio por parte del Super Admin (`app/api/v1/super_admin/router.py:145-153`, vía
 Celery) pasa a enviar **la misma plantilla que una invitación de usuario**. Hoy son dos maquetas
 distintas con el contenido idéntico —URL de ingreso, usuario y contraseña generada— y con un texto
-de cierre diferente: la de bienvenida dice *"te recomendamos cambiar tu contraseña después de
-iniciar sesión por primera vez"*, mientras la de invitación informa que es obligatorio.
+de cierre diferente: la de bienvenida dice _"te recomendamos cambiar tu contraseña después de
+iniciar sesión por primera vez"_, mientras la de invitación informa que es obligatorio.
 **Por qué cambia**: dos razones. La primera es de presentación: sin este cambio, el correo del alta
 de negocio quedaría como el único de los cuatro sin la marca del producto, y es justamente el
 primero que ve un cliente que acaba de contratar. La segunda es de exactitud, y se verificó en el
@@ -3786,7 +3786,7 @@ ya protege el escape del nombre de la persona (incluido el caso del apóstrofo, 
 debe seguir protegiéndolo; no existe ningún test que cubra el escape de los otros valores, y la spec
 pide añadirlos. **Clasificación**: HALLAZGO. **Tratamiento acordado**:
 `specs/096-correos-transaccionales/spec.md` (FR-040, FR-041, SC-004, y la fila correspondiente de
-*Contexto y Encuadre*).
+_Contexto y Encuadre_).
 
 **Estado (2026-10-06)**: CORREGIDA por FR-040 con esta implementación. `_campos.escapar_valores`
 es el único punto por el que pasa todo valor dinámico antes de insertarse en HTML — ya no es una
@@ -3817,7 +3817,7 @@ correos. La limpieza del archivo de entorno —una sola asignación por variable
 un modo de envío inerte para desarrollo— es trabajo propio, candidato natural a la spec de
 entregabilidad que A-114 ya anticipa. **Tests afectados**: ninguno; los tests del backend simulan el
 envío y no contactan el servicio. **Clasificación**: HALLAZGO.
-**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (*Assumptions*, verificación
+**Tratamiento acordado**: `specs/096-correos-transaccionales/spec.md` (_Assumptions_, verificación
 con envío real) y [`registro-riesgos.md`](./registro-riesgos.md) **R20**, que ya describe el
 microservicio de correo externo como dependencia fuera del control del repositorio.
 
