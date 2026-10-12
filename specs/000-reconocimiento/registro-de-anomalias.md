@@ -1163,6 +1163,10 @@ pagos en efectivo, no el neto.
   **Depende de esto**: cualquier consumidor del frontend que aún lea el campo deprecado.
   **Tratamiento acordado**: documentar sin especificar hasta confirmar uso real; retirar en fase
   de modernización si se confirma que no hay consumidores.
+  **Actualización (spec 108, 2026-10-10)**: se confirmó que `pos-heladeria` no lee `cash_sales` ni
+  `ventas_efectivo` para la tarjeta "Ventas Efectivo" — lee `sales_by_method` (fila `cash`), que
+  hasta antes de la spec 108 llevaba el bruto, no el neto (ver A-122). Sigue sin confirmarse ningún
+  consumidor de `cash_sales`; la pregunta de si el alias puede retirarse queda igual de abierta.
 
 ### A-41 — Impuestos fijos en $0 sin confirmar si es una decisión fiscal definitiva
 
@@ -3858,6 +3862,177 @@ añade el test de que un valor obligatorio vacío produce `502` con rollback y s
 al `except RuntimeError` existente (mismo `502`, mismo `db.rollback()`, sin vía de error nueva) y un
 `logger.warning` con los campos faltantes y ningún valor (FR-042). Test nuevo en
 `test_invitations_create.py`.
+
+---
+
+### A-122 — [DECISIÓN DE NEGOCIO — spec 108] La tarjeta "Ventas Efectivo" del resumen de caja deja de mostrar el efectivo bruto recibido en mano y pasa a mostrar el valor neto facturado; el banner deja de restar el "cambio entregado" como término de la fórmula
+
+**Qué cambia**: en el resumen de caja (`pos-heladeria`, módulo `cash-register`), la tarjeta "Ventas
+Efectivo" —alimentada por la fila `method_type="cash"` de `sales_by_method`, que construye
+`reconcile()` en `pos-backend/app/api/v1/cash/service.py` (líneas ≈130-160)— deja de mostrar el
+efectivo bruto recibido en mano (ej. $48.000, cuando el cliente paga $31.000 por una factura de
+$28.000 y recibe $3.000 de cambio) y pasa a mostrar el valor neto facturado en efectivo (ej.
+$45.000), igual al que ya calculaba `ReconciliationResponse.ventas_efectivo`
+(`by_type["cash"] - change_total`). Además, el texto del banner "Efectivo esperado en caja"
+(`cash-dashboard.component.ts:42`) deja de decir "Fondo inicial + ventas en efectivo − cambio
+entregado + ingresos − egresos − retiros" y pasa a decir "Fondo inicial + ventas en efectivo +
+ingresos − egresos − retiros"; y la fila "Cambio entregado" del reporte de cierre impreso
+(`cash-report.component.ts`), que hoy aparece con "−" entre las filas de Ventas y la fila Ingresos
+dentro de la misma tabla secuencial que termina en "Efectivo esperado", se reposiciona como dato
+informativo aparte de esa secuencia — mismo tratamiento que ya tenía la tarjeta equivalente del
+dashboard.
+
+**Por qué cambia**: el valor de `expected` (Efectivo Esperado) nunca estuvo mal calculado —
+`ventas_efectivo` ya restaba el cambio entregado antes de este hotfix—, pero la tarjeta de desglose
+por método mostraba el bruto, y el texto del banner describía una resta de "cambio entregado" que
+ya no ocurría ahí (estaba implícita dentro de `ventas_efectivo`). Esa divergencia entre lo que se
+veía y lo que realmente se sumaba hacía que el cajero/administrador clasificara el dinero devuelto
+como si fuera una venta bruta, y diera la impresión de una "doble resta" del cambio. El pedido
+original (acceptance criteria 1-3 de `specs/108-ventas-efectivo-neto-caja/spec.md`) exige que la
+tarjeta muestre la suma de los valores netos de las facturas cobradas en efectivo, que la fórmula
+visible no reste el cambio como término operativo, y que el cambio entregado siga disponible solo
+como dato informativo secundario.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-10, al redactar la spec 108 (hotfix).
+
+**Funcionalidades afectadas**: `pos-backend` (`app/api/v1/cash/service.py`, fila `cash` de
+`sales_by_method`) y `pos-heladeria` (`cash-dashboard.component.ts`, banner; `cash-report.component.ts`,
+fila "Cambio entregado" del reporte impreso). No afecta la pantalla de apertura de turno, los
+movimientos manuales (ingreso/egreso/retiro), ni el arqueo físico (efectivo contado/diferencia).
+Un turno cerrado antes de este hotfix se verá con la nueva interpretación al reconsultarlo en el
+historial, porque el arqueo se recalcula en el momento de la consulta y no hay snapshot persistido
+que migrar (`specs/108-ventas-efectivo-neto-caja/spec.md`, Assumptions).
+
+**Riesgo asumido**: ninguno sobre el resultado numérico — `expected` y `difference` quedan
+matemáticamente idénticos a los que el sistema ya calculaba para cualquier turno, abierto o
+cerrado, antes de este hotfix (`specs/108-ventas-efectivo-neto-caja/research.md`, D3). El riesgo es
+puramente de presentación: cualquier reporte externo que hubiera capturado una captura de pantalla
+o un PDF impreso antes del hotfix mostrará un número de "Ventas Efectivo" distinto al que el
+sistema muestre después — se acepta porque esos reportes ya emitidos no se alteran (Principio VII,
+no son facturas), y el cambio es exactamente lo que el negocio pidió.
+
+**Tests afectados**: ninguno existente afirma el valor bruto en `sales_by_method` ni el texto viejo
+del banner (`grep` sobre `app/characterization_tests` de `pos-backend` solo encuentra asserts
+directos sobre `Sale.change_given`, ninguno sobre el endpoint de arqueo; ningún spec Vitest de
+`cash-register` en `pos-heladeria` asertaba ese texto o esa fila). Se agrega un test nuevo:
+`pos-backend/app/scripts/test_cash_net_sales.py`.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/108-ventas-efectivo-neto-caja/spec.md` (FR-001, FR-002, FR-004, FR-005),
+`specs/108-ventas-efectivo-neto-caja/research.md` (D1, D2, D3).
+
+**Estado (2026-10-10)**: IMPLEMENTADA. Mergeada a `develop` en `pos-backend` (PR #14) y
+`pos-heladeria` (PR #23) vía la rama `fix/108-ventas-efectivo-neto-caja`.
+
+---
+
+### A-123 — [DECISIÓN DE NEGOCIO — spec 109] El archivo de inventario (export e import) cambia de columnas: agrega código del insumo y datos del proveedor preferido; retira "Estado"
+
+**Qué cambia**: la spec 109 reemplaza y absorbe el export básico de la spec 086 (7 columnas:
+Nombre/Tipo/Unidad/Stock/Mínimo/Costo/Estado, `pos-backend/app/api/v1/inventory/export.py`) dentro
+de una plantilla única de 11 columnas compartida con una importación masiva nueva. La plantilla
+agrega **Código** (atributo nuevo del insumo, antes inexistente) al principio, y **Proveedor
+preferido / Presentación / Factor de conversión / Último costo** (spec 106/107) al final; retira
+**Estado** (`Bajo mínimo`/`OK`), porque es un valor calculado en el momento de exportar, no un dato
+editable que tenga sentido en una plantilla pensada para ida y vuelta (exportar → editar →
+reimportar).
+
+**Por qué cambia**: el pedido original (ticket de la spec 109) pide que el export sirva como
+plantilla de importación simétrica para actualizar precios/stock/datos de producto masivamente —
+eso exige un identificador estable para el upsert (Código, que no existía) y, para que la
+actualización masiva de precios cubra también el costo pactado con el proveedor, los datos del
+proveedor preferido. "Estado" queda fuera porque incluirlo invitaría a que alguien lo "corrija" en
+el Excel y lo reimporte, sin que eso tenga ningún efecto real (seguiría siendo calculado al
+exportar de nuevo) — confuso sin necesidad.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-10, al redactar la spec 109 (ver "Aclaraciones
+previas" de `specs/109-inventario-excel-masivo/spec.md`, resueltas interactivamente antes de
+escribir el spec).
+
+**Funcionalidades afectadas**: solo el módulo de Inventario de `pos-backend`
+(`app/api/v1/inventory/export.py`, nuevo `import_.py`) y `pos-heladeria`
+(`inventory-page.component.ts` y el módulo `inventory`). No afecta compras, recetas, ni ningún
+otro módulo que no sea el export/import de insumos. `InventoryItem` gana la columna `code`
+(backfillada automáticamente para insumos existentes, spec 109 FR-003) — ningún campo existente
+(`name`, `current_stock`, `min_stock`, `unit_cost`, `active`) cambia de significado ni de valor.
+
+**Riesgo asumido**: cualquier integración externa que ya dependiera de las 7 columnas exactas del
+export de la spec 086 (p. ej. una macro de Excel o un proceso de contabilidad externo armado a
+mano) deja de encontrar "Estado" y encuentra columnas nuevas en otras posiciones. Se acepta porque
+la spec 086 nunca comprometió un contrato de columnas estable a terceros (es un respaldo interno,
+no una integración documentada), y porque el propio ticket que origina la spec 109 es quien pide
+ampliar esas columnas.
+
+**Tests afectados**: `pos-backend/app/characterization_tests/test_inventory_export.py` (spec 086)
+se actualiza directamente con las nuevas columnas — su propio docstring ya aclara "No son
+characterization tests" (el endpoint no existía antes de la 086), así que esta actualización no
+reabre la protección especial del Principio III. Se agrega un test nuevo:
+`pos-backend/app/scripts/test_inventory_bulk_excel.py`.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/109-inventario-excel-masivo/spec.md` (FR-001, FR-002, FR-003, "Aclaraciones previas"),
+`specs/109-inventario-excel-masivo/research.md` (D3, D4, D6).
+
+**Estado (2026-10-10)**: REGISTRADA, implementación en curso en la rama
+`feat/109-inventario-excel-masivo` de `pos-backend` y `pos-heladeria`.
+
+---
+
+### A-124 — [DECISIÓN DE NEGOCIO — spec 112] Se revierte la eliminación de "Combinar método de pago" que hizo la spec 046
+
+**Qué cambia**: la spec [046](../046-dividir-cuenta-pago-pendiente/spec.md) (FR-006/FR-007)
+eliminó por completo, en toda la aplicación, la capacidad de cobrar un pedido combinando más de
+un método de pago en el mismo cobro (la que había introducido la spec
+[011](../011-venta-mostrador-constructor-factura/spec.md)) — decisión escalada en tres rondas
+sucesivas de Clarifications el 2026-08-28. La spec
+[112](../112-fix-cobro-pago-mixto/spec.md) reintroduce esa capacidad, ahora con reglas nuevas que
+spec 046 no tenía: máximo 3 líneas de pago por cobro, suma exacta contra el total (incluyendo
+cargos como domicilio), vuelto calculado y descontado del cierre de caja solo sobre la porción en
+efectivo, un único método (efectivo) puede recibir más dinero del asignado, y cada línea de pago
+no efectivo admite una referencia opcional. El modelo de datos (`Payment` 1:N por `Sale`) y el
+endpoint de cobro (`PayIn.payments: list[PaymentIn]`) en `pos-backend` nunca dejaron de soportar
+varias líneas — la restricción a un único método vivía solo en el frontend
+(`PaymentInputComponent`/`payment-draft.util.ts`), así que revertir la decisión no requiere
+deshacer ninguna migración de esquema.
+
+**Por qué cambia**: el negocio (heladería) reporta que hoy el cajero debe registrar con un solo
+método un cobro que el cliente pagó en realidad con dos (p. ej. efectivo + transferencia), lo que
+deja el cierre de caja con datos falsos sobre cuánto entró por cada medio. La eliminación de spec
+046 resolvía otro problema (simplificar el flujo de "Dividir la cuenta" y el bloque de
+confirmación de pago pendiente) pero, como efecto colateral, quitó también la combinación de
+métodos sin reglas de validación claras; spec 112 la reintroduce acotada (tope de 3 líneas, suma
+exacta, vuelto solo en efectivo) para que no reabra el problema original que motivó quitarla.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-11, al redactar `specs/112-fix-cobro-pago-mixto/spec.md`
+a partir de una descripción de producto con reglas de negocio explícitas (RN1-RN12) y escenarios
+Gherkin, confirmado explícitamente durante `/speckit-plan` al preguntársele si la reversión de
+spec 046 era intencional.
+
+**Funcionalidades afectadas**: el panel "Cobrar pedido" (`PaymentInputComponent`,
+`payment-draft.util.ts`, `PosCheckoutPanelComponent` en `pos-heladeria`), compartido entre Mesa,
+Para llevar y Domicilio. No afecta "Dividir la cuenta entre varias personas" (spec 010/036/046),
+que sigue eliminada — spec 112 solo reabre el sub-alcance de métodos de pago combinados, no el
+reparto por comensal. Tampoco afecta el modelo `Payment`/`Sale`, el catálogo de métodos de pago
+por tenant (spec 032), el cierre de caja (spec 006, ya agrupa por método) ni el comprobante del
+pedido (ya itera `sale.payments` como lista) en `pos-backend`/`pos-heladeria`: esas capas ya
+soportaban varias líneas de pago y no requieren cambio para esta reversión.
+
+**Riesgo asumido**: ningún flujo de la aplicación dependía de que un cobro tuviera garantizado un
+único `Payment` por `Sale` (el endpoint ya aceptaba una lista); el riesgo principal es de UX —
+que el flujo de un solo método (el caso frecuente) se vuelva más lento o confuso al introducir la
+opción de agregar líneas — por lo que spec 112 exige explícitamente (FR-014) que cobrar con un
+solo método mantenga el mismo número de pasos que hoy.
+
+**Tests afectados**: ninguno de los characterization tests protegidos por el Principio III —
+spec 046 no generó characterization tests sobre la eliminación (era una corrección de UI/UX, no
+un comportamiento heredado desde antes de la modernización). Los tests propios de spec 046 que
+verificaban que el frontend solo permite un método deberán actualizarse como parte de la
+implementación de spec 112, citando esta entrada.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/112-fix-cobro-pago-mixto/spec.md` (RN1-RN12, Historias 1-5, FR-001 a FR-020).
+
+**Estado (2026-10-11)**: REGISTRADA, pendiente de plan técnico e implementación.
 
 ---
 

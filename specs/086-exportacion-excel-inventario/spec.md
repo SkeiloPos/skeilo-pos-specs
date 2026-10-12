@@ -6,6 +6,11 @@
 
 **Status**: Draft
 
+**Superseded by**: `specs/109-inventario-excel-masivo` (2026-10-10) — esa spec absorbe esta
+exportación básica de 7 columnas dentro de una plantilla única compartida con una importación
+masiva nueva, agregando el código del insumo y los datos del proveedor preferido. Este documento
+no se reescribe; queda como registro de lo que ya se implementó y por qué.
+
 **Input**: User description: "## 1. Objetivo y Contexto de Negocio
 Implementar la funcionalidad de exportación a Excel en el módulo de Inventario. El objetivo
 es permitir a los administradores descargar un respaldo o reporte de todo el stock de
