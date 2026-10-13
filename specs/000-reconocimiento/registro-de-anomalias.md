@@ -4097,6 +4097,109 @@ defecto a uno positivo como parte de la implementación de spec 114, citando est
 
 ---
 
+### A-126 — [DECISIÓN DE NEGOCIO — spec 117] La cantidad de una adición de un grupo "Por cantidad" deja de multiplicarse por la cantidad de producto de la línea, en todo canal
+
+**Qué cambia**: se reabre `RN-CAT-01` (spec 002) exclusivamente para grupos de opciones con
+`selection_mode = 'cantidad'` (spec 065). Hasta hoy, la spec 089 (`A-94`) solo corrigió este eje de
+multiplicación para opciones de grupos con recargo (`pricing_type = 'con_recargo'`) agregadas desde
+el carrito del **Menú QR**. Con esta decisión, el mismo criterio —el total de la adición es la
+cantidad elegida de esa adición, no multiplicada por la cantidad de producto de la línea— aplica
+también a cualquier grupo "Por cantidad", **en todo canal**: carrito del Menú QR, consolidación de
+mesero (`add_item_to_order`), alta directa de comanda (`create_order`), venta de mostrador
+(`checkout`), reemplazo de un ítem anulado (comanda de cocina), borrador de pedido manual
+(`compute_draft_preview`) y Terminal POS (`PosTerminalStore`). Así, 2 granizados ($18.000 c/u) con 1
+porción de gomitas ($1.000) de un grupo "Por cantidad" cobran **$37.000** (2×$18.000 + 1×$1.000), no
+$38.000. Los topes `max_quantity_per_option`/`max_total_quantity` (spec 065) se escalan por la
+cantidad de producto de la línea al validar. El modo "Conteo" (spec 004) **no** cambia en ningún
+canal — sigue multiplicando su recargo por la cantidad de producto, igual que hoy (FR-013).
+
+**Por qué cambia**: reporte del negocio — cobrar 2 granizados con 1 porción de gomitas termina
+cobrando 2 porciones, lo que no corresponde a lo que el cliente pidió ni a lo que el cajero
+entregó.
+
+**Quién y cuándo**: usuario/negocio, 2026-10-13, respuestas 1 ("Solo al modo 'Por cantidad'... En
+'Conteo'... sin cambios para ese modo"), 2 (reducción automática determinista al escalar el tope) y
+6 (fusión de línea exige confirmar la cantidad de adición combinada, FR-014) de la sesión de
+Clarifications de `specs/117-adiciones-cantidad-total-linea/spec.md` (2026-10-13).
+
+**Funcionalidades afectadas**: pricing de línea y validación de topes de grupo en `pos-backend`
+(carrito, consolidación de mesero, alta directa de comanda, venta de mostrador, reemplazo de ítem
+anulado, borrador de pedido manual) y su consumo de inventario asociado; comanda de cocina
+(muestra la cantidad total vigente de la adición, spec 065 `FR-010`, sin cambio de formato); carrito
+y selector de producto de `pos-heladeria` (Terminal POS y Menú QR). **Nunca** el modo "Conteo"
+(`FR-013`) ni pedidos, órdenes, ventas o facturas ya confirmados antes de este cambio (`FR-012`,
+Principio VII) — la corrección aplica solo a líneas nuevas o editadas hacia adelante.
+
+**Riesgo asumido**: ninguno nuevo distinto del ya aceptado por `A-94` — el negocio decide
+explícitamente el criterio de reducción automática (determinista, sin intervención del cajero en el
+momento del ajuste) y el de fusión de línea (exige confirmación explícita de la cantidad de
+adición combinada, nunca suma tácita), ambos documentados en la sesión de Clarifications citada
+arriba.
+
+**Tests afectados**: los `"CONGELA comportamiento actual:"` que fijan la multiplicación por
+cantidad de producto para grupos "Por cantidad" en
+`app/characterization_tests/test_catalog_option_groups_quantity.py`
+(`test_confirmar_una_orden_completa_descuenta_el_total_multiplicado`,
+`test_cobrar_una_venta_de_mostrador_completa_descuenta_el_total_multiplicado`) se actualizan
+citando esta entrada, nunca en silencio (Principio III). `test_catalog_line_pricing.py` y
+`test_catalog_consumption_plan.py` ya cubren `per_line=True` de forma abstracta y no necesitan
+cambios (verificado contra el código al ejecutar `specs/117-adiciones-cantidad-total-linea/tasks.md`,
+T016).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/117-adiciones-cantidad-total-linea/spec.md` (Historias 1 a 4, sesión de Clarifications
+2026-10-13), `specs/117-adiciones-cantidad-total-linea/research.md` (D1-D8).
+
+**Estado (2026-10-13)**: REGISTRADA, en implementación.
+
+---
+
+### A-127 — `sales/service.py::checkout` (venta de mostrador) crashea con `AttributeError` en toda ejecución: el nombre del módulo `checkout` queda sombreado por la función del mismo nombre
+
+**Descripción**: `app/api/v1/sales/service.py` importa el módulo `app.api.v1.orders.checkout` como
+`checkout` (línea 29: `from app.api.v1.orders import checkout`) y, en el mismo archivo, define
+`def checkout(db, data, cashier, ...)` (línea 299) — la función de venta de mostrador que invoca
+`router.py:126` (`POST /sales/checkout`). Al terminar de cargarse el módulo, el nombre global
+`checkout` queda apuntando a la **función**, no al módulo importado. Dentro de la propia función,
+la línea `promo_discount, final_promotion_id, applied = checkout.auto_discount(db, lines, now)`
+busca `auto_discount` en ese mismo nombre global — que ya es la función, sin ese atributo — y
+lanza `AttributeError: 'function' object has no attribute 'auto_discount'`, envuelto por el
+`except Exception` del propio `checkout()` en un log "Error en checkout de venta" y relanzado.
+Confirmado en vivo (no solo por lectura): cualquier llamada a `service.checkout(...)` con al menos
+un ítem llega a esa línea y crashea, sin excepción — no es un caso de borde de una rama
+específica, es el camino feliz completo de **toda** venta de mostrador.
+
+- **CÓDIGO**: `app/api/v1/sales/service.py:29` (import) vs `:299` (definición de la función que
+  lo sombrea) vs `:345` (uso roto). Detectado al implementar `specs/117-adiciones-cantidad-total-linea/tasks.md`
+  T013 (que exige un characterization test de punta a punta sobre `service.checkout`, imposible de
+  escribir contra código que crashea antes de llegar al pricing); ya había sido notado antes, sin
+  corregirse, en un comentario de
+  `app/characterization_tests/test_catalog_option_groups_quantity.py`
+  (`test_cobrar_una_venta_de_mostrador_completa_descuenta_el_total_multiplicado`, spec 065), que
+  evitó deliberadamente llamar a `service.checkout` por esto mismo y probó el camino de consumo de
+  inventario por otra vía.
+  **Clasificación**: **ACCIDENTAL** (error de programación — sombra de nombre entre un import de
+  módulo y una función del mismo archivo —, no una regla de negocio ni una ambigüedad de
+  especificación).
+  **Impacto**: ningún camino de prueba existente lo detectaba porque, hasta T013 de la spec 117,
+  ningún characterization test llamaba a `service.checkout` de punta a punta — los
+  `test_sales_payment_methods*.py` solo cubren disponibilidad/catálogo de métodos de pago, nunca
+  el checkout real. En producción, cualquier venta de mostrador (`POST /sales/checkout`) con al
+  menos un ítem devuelve 500.
+  **Tratamiento acordado**: corrección mínima de una línea, sin cambio de comportamiento ni de
+  contrato — renombrar el import a un alias que no colisione (`from app.api.v1.orders import
+  checkout as orders_checkout`) y usar `orders_checkout.auto_discount(...)` en la línea 345. Se
+  aplica como parte de la implementación de `specs/117-adiciones-cantidad-total-linea` (T013 la
+  necesita para poder escribir su test), pero es un fix de bug independiente de esa spec, no una
+  decisión de negocio ni comportamiento nuevo — no reabre ningún principio de compatibilidad con
+  datos históricos (Principio VII): ninguna venta ya persistida pasó por este camino exitosamente,
+  porque no podía.
+
+**Estado (2026-10-13)**: REGISTRADA, corregida en la misma sesión (ver
+`specs/117-adiciones-cantidad-total-linea/implementation-notes.md`).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
