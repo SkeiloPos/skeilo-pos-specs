@@ -1,7 +1,12 @@
 # Contrato — `app-tenant-sidebar` y `app-tenant-header`
 
-**Spec**: [../spec.md](../spec.md) (Historias 1 a 3) | **Research**:
-[../research.md](../research.md) R1, R5, R6, R8
+**Spec**: [../spec.md](../spec.md) (Historias 1 a 3, y Historia 4 en lo que toca al botón de
+menú/colapso) | **Research**: [../research.md](../research.md) R1, R5, R6, R8, R15
+
+> **§2/§3 actualizadas en la iteración 2026-10-13** (research R15): el botón de menú/colapso del
+> sidebar de escritorio vuelve a vivir en `app-tenant-header` (como en `Layout base.dc.html`,
+> fuente de verdad vigente), no en `app-tenant-sidebar` (como quedó tras el ajuste R13 de la
+> iteración anterior, que seguía a `SkeiloPOS App.dc.html`, ya no vigente).
 
 ## 1. `DashboardLayoutComponent` — el único cambio en el shell compartido
 
@@ -39,13 +44,18 @@
   pintar en consecuencia: 248px/72px en `'desktop'`, superpuesto con scrim en `'drawer'`.
 - Mostrar el tooltip accesible por teclado cuando está colapsada (contrato en
   [panel-theme-contract.md](./panel-theme-contract.md) §5).
-- **Actualizado** (research.md R13): el botón de colapso (`layoutService.toggleDesktopCollapsed()`)
-  vive aquí, junto al encabezado logo/nombre, visible solo en `'desktop'` — no en el navbar
-  (§3). El pie del sidebar pinta una marca estática "SkeiloPOS" (`/logo.svg` + wordmark).
+- **Actualizado de nuevo** (research.md R15, revierte R13 para este punto): el botón de colapso
+  **ya no vive aquí** — vuelve a `app-tenant-header` (§3), consolidado con el botón de drawer
+  móvil en un único control, igual que `Layout base.dc.html`. El pie del sidebar sigue pintando la
+  marca estática "SkeiloPOS" (wordmark, R14.2), sin cambios.
 
 ### Garantías observables
-- El ítem correspondiente a la ruta activa se resalta (FR-004) — mismo criterio que hoy
-  (`routerLinkActive`, `exact: true`).
+- El ítem correspondiente a la ruta activa se resalta (FR-004) — **actualizado** (research R22.1,
+  spec.md Session 2026-10-14): `routerLinkActive` con `exact: false`, no `exact: true`. Angular
+  compara por segmento de `UrlTree`, no por substring de texto, así que una subvista sin ítem
+  propio (editar/crear/detalle, de cualquier módulo, no solo Carta) resalta a su módulo padre, sin
+  que rutas que solo comparten prefijo de texto (`/dashboard/mesas` vs.
+  `/dashboard/mesas-sesiones`) se confundan entre sí.
 - Un grupo sin ítems visibles no se renderiza, nunca como contenedor vacío (FR-016).
 - Colapsar/expandir no navega ni pierde el scroll del `<router-outlet>` (FR-007).
 - En `'drawer'`, un scrim (fondo oscurecido) cubre el resto de la pantalla; tocarlo o seleccionar
@@ -61,13 +71,22 @@
 ## 3. `app-tenant-header`
 
 ### Responsabilidades
-- Botón de menú — **actualizado** (research.md R13, ajuste visual contra `SkeiloPOS App.dc.html`):
-  solo existe en `'drawer'` (<1024px), donde abre/cierra el sidebar superpuesto
-  (`layoutService.toggle()`). En `'desktop'` el navbar no tiene ningún control de menú — el
-  colapso/expansión vive dentro de `app-tenant-sidebar` (§2), junto al logo del negocio, no aquí.
+- Botón de menú/colapso — **actualizado de nuevo** (research.md R15, revierte R13 para este punto,
+  vuelve a `Layout base.dc.html`): un único botón, **siempre visible** (en ambos modos de vista),
+  con un solo efecto según `viewMode()`: en `'drawer'` (<1024px) invoca `layoutService.toggle()`
+  (abre/cierra el sidebar superpuesto, sin cambios de comportamiento ahí); en `'desktop'` invoca
+  `layoutService.toggleDesktopCollapsed()` (antes vivía dentro de `app-tenant-sidebar`, §2 — ya
+  no). El `aria-label`/`title` cambia según el modo y el estado, igual que hoy. El ícono es
+  siempre `menu` (**actualizado**, research R23.1): `Layout base.dc.html:52` no define un ícono
+  distinto para el estado colapsado/expandido ni para el modo escritorio — es el mismo ícono de
+  hamburguesa en todos los casos, nunca `panel-left` (resto de una iteración ya revertida).
 - Título de sección y de página, derivados de la ruta activa (el mismo criterio que hoy usa
   `HeaderComponent` con un título fijo "Panel de Control" se reemplaza por uno dinámico: sección
-  = `frame.group` del ítem activo; título = `frame.label` del ítem activo).
+  = `frame.group` del ítem activo; título = `frame.label` del ítem activo). **Actualizado**
+  (research R22.1): el ítem activo se resuelve por coincidencia de prefijo de segmento
+  (`path === item.route || path.startsWith(`${item.route}/`)`, sobre la URL sin query/fragment,
+  con desempate por la ruta más larga), no por igualdad exacta — una subvista sin ítem propio
+  también resuelve el título/sección de su módulo padre.
 - Campana de notificaciones — reutiliza `NotificationCenterService`/`PushRegistrationService`
   exactamente como `HeaderComponent` hoy (mismo dropdown, mismo conteo, mismo flujo de permiso
   push); solo cambia su envoltorio visual (ícono `bell` de `app-icon`, paleta `.panel-theme`).

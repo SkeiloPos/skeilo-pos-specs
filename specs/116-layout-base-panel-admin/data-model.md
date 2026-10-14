@@ -162,3 +162,45 @@ tabla exhaustiva ruta → grupo/etiqueta/ícono nuevos).
 - **Cualquier dato de servidor**: `TenantInfoService`, `PlanSummaryService`, `AuthService`,
   `CashService` se **leen** (el último, con una llamada adicional ya existente — research R8),
   nunca se modifican sus contratos ni sus endpoints.
+
+---
+
+## 6. Iteración 2026-10-13 — estructuras nuevas (ninguna persistida)
+
+A diferencia de §1-§2, **nada de lo que esta iteración añade se guarda en `localStorage`**: son
+todas estructuras efímeras, recalculadas en cada carga o en cada navegación.
+
+### 6.1 Fase de transición de navegación — `NavigationTransitionPhase` (derivada, no persistida)
+
+Mismo espíritu que `SidebarViewMode` (§3): no es una entidad de negocio, es el estado que decide
+qué pinta la pantalla durante una transición de navegación (research.md R20).
+
+| `NavigationTransitionPhase` | Cuándo | Qué se ve |
+|---|---|---|
+| `'idle'` | Sin navegación en curso | El `router-outlet` muestra el contenido real, sin barra ni skeleton |
+| `'out'` | Justo tras `NavigationStart` de una ruta distinta (sin contar query params) | Contenido anterior se desvanece; la barra empieza a crecer |
+| `'skeleton'` | Tras el retardo fijo del cronómetro, mientras no haya llegado `NavigationEnd` | Skeleton genérico (bloques fijos, no ligados a datos reales) visible en vez del contenido |
+| `'in'` | Tras lo último entre "cronómetro mínimo cumplido" y "`NavigationEnd` real" | Contenido real revelado, con la animación de aparición de los bloques de nivel superior |
+
+Vive como signal en `NavigationTransitionService` (`providedIn: 'root'`, nuevo). Se resetea a
+`'idle'` en `NavigationCancel`/`NavigationError`. Un `NavigationStart` nuevo mientras ya hay una
+transición en curso reinicia el cronómetro desde `'out'` (cancela los temporizadores pendientes) —
+nunca persiste nada entre navegaciones, y mucho menos entre cargas de página.
+
+**Qué NO decide este signal**: no sabe nada de datos de negocio ni de peticiones HTTP de cada
+módulo — un módulo puede seguir mostrando su propio spinner interno después de que `phase()` vuelva
+a `'idle'`, sin que este servicio se entere ni deba enterarse (Assumptions de la spec).
+
+### 6.2 Parámetro de tema de gráficas — extensión de `ChartOptions` (no persistida, derivada)
+
+`chart-theme.ts::baseOptions(kind, theme)` (research R19) no introduce una entidad nueva: `theme`
+es el mismo valor de `PanelThemeService.theme()` (§1), leído por cada componente de gráfica en su
+propio `computed()` — ningún estado nuevo que recordar, solo un parámetro adicional de una función
+pura ya existente.
+
+### 6.3 `.force-light-surface` — marcador estructural, no una entidad de datos
+
+Research R17. Es una clase CSS, no un signal ni un valor que algún componente lea o escriba — se
+aplica de forma estática en la plantilla de `cash-report.component.ts` y
+`table-qr-sheet.component.ts` (nunca condicional: esas dos superficies siempre están en claro, sin
+importar el tema activo). No hay transición de estado que documentar.
