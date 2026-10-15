@@ -397,7 +397,7 @@ forma independiente.
   muestra el estado vacío con su texto y ningún "NaN" ni "undefined"; ventas, órdenes y ticket
   promedio se muestran en `0`. Añadir el caso en `admin-dashboard.component.spec.ts` o en un spec
   nuevo de la tarjeta
-- [ ] T036 Ejecutar manualmente los 9 escenarios de [quickstart.md](./quickstart.md) (más §3b y §5b)
+- [X] T036 Ejecutar manualmente los 9 escenarios de [quickstart.md](./quickstart.md) (más §3b y §5b)
   contra `pos-backend` corriendo nativo con `uvicorn` (no Docker, ver memoria
   `reference_pos_api_docker_vs_nativo`) y `pos-heladeria` en el navegador — incluye US1-US5,
   inmutabilidad del snapshot (SC-003), aislamiento multi-tenant/caja (SC-004), agregación exacta
@@ -447,7 +447,7 @@ migraciones son exclusivas de PostgreSQL.
 
 ### Compuerta previa (antes de tocar código)
 
-- [ ] T075 [US6] **Compuerta de commits de US1–US5 (Principios VI y XV; hallazgo C1 de
+- [X] T075 [US6] **Compuerta de commits de US1–US5 (Principios VI y XV; hallazgo C1 de
   `/speckit-analyze`)** — **debe resolverse antes de T039**: el código de US1–US5 sigue sin commit y
   comparte `router.py` y `reports.py` con US6; T046 y T054 lo reescriben, así que después ya no se
   podrá separar el historial por unidad. Preguntarle al usuario si quiere commitear US1–US5 en
@@ -455,12 +455,17 @@ migraciones son exclusivas de PostgreSQL.
   → `active_orders` → `reports`/`schemas` → `router` → tests; `pos-heladeria`: interfaces/servicio →
   tarjeta → dashboard → bloqueo de cierre; `pos-specs`: A-128/A-129 y artefactos de la spec— o si
   acepta un historial mezclado. **No commitear nada sin su pedido explícito.** Anotar aquí la
-  decisión: `[ ]` commiteado por el usuario / `[ ]` acepta historial mezclado. Si se commitea,
-  recalcular y registrar en T039 el hash de los dos tests (siguen siendo la línea base)
+  decisión: `[X]` commiteado por el usuario / `[ ]` acepta historial mezclado. Si se commitea,
+  recalcular y registrar en T039 el hash de los dos tests (siguen siendo la línea base).
+  **Decisión (2026-10-15)**: el usuario eligió commitear US1–US5 antes de US6. Hecho: `pos-backend`
+  5 commits (`3d04b76` modelo + Rev. A → `f13fdfe` active_orders → `ae1f867` reports/schemas →
+  `7428c92` router → `1554a4e` tests), `pos-heladeria` 4 commits (`c8f82ba` interfaces/servicio →
+  `b962db1` tarjeta → `ad19de2` dashboard → `28a756f` bloqueo de cierre), `pos-specs` 2 commits
+  (`55ee6df` A-128/A-129 → `981aff2` artefactos de la spec). Sin push
 
 ### Línea base (antes de tocar código)
 
-- [ ] T039 [US6] Fijar la línea base de SC-008: (a) con el entorno virtual de `../pos-backend`,
+- [X] T039 [US6] Fijar la línea base de SC-008: (a) con el entorno virtual de `../pos-backend`,
   ejecutar `python -m unittest app.characterization_tests.test_cash_shift_sales_report
   app.characterization_tests.test_cash_close_active_orders -v` y confirmar todo en verde; (b)
   registrar el `sha256sum` de ambos archivos de test. **Los dos están sin versionar, por lo que
@@ -484,7 +489,7 @@ hijas), con su migración (Rev. B) reversible sin pérdida, y los tests existent
 > la Unidad 1 sea verificable y commiteable por sí sola, T046 adapta **solo** esa lectura; la Unidad 2
 > reemplaza la función completa.
 
-- [ ] T040 [US6] Reescribir `../pos-backend/app/models/shift_sales_report.py` (data-model.md
+- [X] T040 [US6] Reescribir `../pos-backend/app/models/shift_sales_report.py` (data-model.md
   §2.1–2.3, research.md D9): (1) `ShiftSalesReport` conserva `cash_shift_id`, `total_sales`,
   `order_count`, `avg_ticket`, `computed_at`, el `UniqueConstraint` y los 3 `CheckConstraint` tal
   cual, y **pierde** `products_breakdown`/`categories_breakdown` (y el import de `JSONB`); (2) NUEVA
@@ -500,17 +505,19 @@ hijas), con su migración (Rev. B) reversible sin pérdida, y los tests existent
   `units`, `revenue`, `Index("ix__shift_sales_report_categories__cash_shift_id", "cash_shift_id")`
   y los mismos `CheckConstraint`; **sin** `UNIQUE (cash_shift_id, category_id)` (en PostgreSQL
   `NULL` no cuenta como igual). Nombrar los `CheckConstraint` con el prefijo
-  `ck_shift_sales_report_product_*` / `ck_shift_sales_report_category_*`, en la línea de los
+  `ck_shift_sales_report_product_*` / `ck_shift_sales_report_category_*` (**en la implementación se
+  usaron nombres cortos `units_nonneg`/`revenue_nonneg`**: con los largos la convención de nombres
+  superaba los 63 caracteres de PostgreSQL y SQLAlchemy los truncaba con un hash), en la línea de los
   `ck_shift_sales_report_*` de la cabecera
-- [ ] T041 [US6] Registrar `ShiftSalesReportProduct` y `ShiftSalesReportCategory` en
+- [X] T041 [US6] Registrar `ShiftSalesReportProduct` y `ShiftSalesReportCategory` en
   `../pos-backend/app/models/__init__.py` (línea 27, junto a `ShiftSalesReport`). Es obligatorio, no
   cosmético: los tenants nuevos se crean con `create_all` de los modelos (`app/core/db.py:100`,
   research.md D14 §4) y sin estas clases nacerían sin dónde guardar el snapshot — depende de T040
-- [ ] T042 [US6] Registrar las dos tablas hijas en `_ORDERS_TABLE_NAMES` de
+- [X] T042 [US6] Registrar las dos tablas hijas en `_ORDERS_TABLE_NAMES` de
   `../pos-backend/app/characterization_tests/orders_fixtures.py` (junto a `"shift_sales_reports"`,
   línea ~123) e importar las dos clases nuevas como ya se importa `ShiftSalesReport` (línea ~79).
   Es infraestructura de test, no una modificación de los tests existentes — depende de T040
-- [ ] T043 [P] [US6] Crear la **Revisión B** en NUEVO
+- [X] T043 [P] [US6] Crear la **Revisión B** en NUEVO
   `../pos-backend/alembic/versions/<rev>_119_report_breakdown_rows.py` (`<rev>` = 12 hex nuevos;
   `down_revision = '2009eabd2e82'`, hoy la cabeza de la cadena; **no editar** la Rev. A: ya está
   aplicada en la base de desarrollo). **Transaccional**, `@for_each_tenant_schema`, con la guarda
@@ -531,7 +538,7 @@ hijas), con su migración (Rev. B) reversible sin pérdida, y los tests existent
   nació en forma final (creado por `create_all`) no haga fallar `alembic upgrade head` antes de B y
   C. Es el **único** cambio a la Rev. A (su estructura no se toca: ya está aplicada en la base de
   desarrollo). Se verifica con quickstart §10.8, paso 6 (T072)
-- [ ] T044 [US6] Añadir en `../pos-backend/app/api/v1/cash/reports.py` la función
+- [X] T044 [US6] Añadir en `../pos-backend/app/api/v1/cash/reports.py` la función
   `persist_shift_snapshot(db, shift, data)` (`data` = salida de `compute_shift_sales_report`):
   agrega la cabecera `ShiftSalesReport` (`total_sales`, `order_count`, `avg_ticket`) y escribe el
   desglose COMPLETO con **una inserción masiva por tabla hija** (`db.execute(insert(ShiftSalesReportProduct), filas)`
@@ -539,13 +546,13 @@ hijas), con su migración (Rev. B) reversible sin pérdida, y los tests existent
   por fila, para que el número de `INSERT` no dependa de cuántos productos se vendieron
   (data-model.md §2.4, research.md D15). Convertir `product_variant_id`/`category_id` de `str` a
   `UUID` (`None` se conserva) y `revenue` a `Decimal`. No hace `commit` — depende de T040
-- [ ] T045 [US6] En `close_shift` (`../pos-backend/app/api/v1/cash/router.py:161-173`) reemplazar
+- [X] T045 [US6] En `close_shift` (`../pos-backend/app/api/v1/cash/router.py:161-173`) reemplazar
   el `db.add(ShiftSalesReport(... products_breakdown=..., categories_breakdown=...))` por una
   llamada a `reports.persist_shift_snapshot(db, shift, report_data)` (T044), en la misma posición
   —justo antes del `db.commit()`, misma transacción— y retirar el import de `ShiftSalesReport`
   (línea 22) si queda sin uso. No tocar el bloque del 409 (T025) ni `RN-CASH-01`…`RN-CASH-17` —
   depende de T044
-- [ ] T046 [US6] **Puente temporal**: en `aggregate_shifts`
+- [X] T046 [US6] **Puente temporal**: en `aggregate_shifts`
   (`../pos-backend/app/api/v1/cash/reports.py:121-133`) sustituir la lectura del `JSONB` por la
   lectura de las filas hijas del turno (hasta 2 consultas por turno cerrado con cabecera) y
   reconstruir `products_breakdown`/`categories_breakdown` con la **misma forma de antes**
@@ -553,7 +560,7 @@ hijas), con su migración (Rev. B) reversible sin pérdida, y los tests existent
   para que el resto de la función no cambie. Dejar un comentario `# PUENTE US6: lo reemplaza
   T054` — es deliberadamente ineficiente (sigue siendo N+1) y no es el diseño final — depende de
   T040
-- [ ] T047 [US6] Crear NUEVO `../pos-backend/app/characterization_tests/test_cash_report_batch_identity.py`
+- [X] T047 [US6] Crear NUEVO `../pos-backend/app/characterization_tests/test_cash_report_batch_identity.py`
   (docstring con el estilo de `test_cash_shift_sales_report.py`: cita FR-013/FR-017/FR-022,
   research.md D9 y el comando para ejecutar solo el módulo) con su **propio** helper `_seed_sale`
   (copia del de `test_cash_shift_sales_report.py`; no importarlo: ese archivo no se toca) y la
@@ -563,19 +570,19 @@ hijas), con su migración (Rev. B) reversible sin pérdida, y los tests existent
   guarda los totales y `ShiftSalesReport` ya no tiene atributos de desglose; (c) turno sin ventas →
   cabecera en cero y **cero** filas hijas; (d) insertar dos veces el mismo `(turno, variante)` viola
   `ux__shift_sales_report_products__shift_variant` (`IntegrityError`) — depende de T044, T045
-- [ ] T048 [US6] **Verificar la Unidad 1**: con el entorno virtual de `../pos-backend`, ejecutar
+- [X] T048 [US6] **Verificar la Unidad 1**: con el entorno virtual de `../pos-backend`, ejecutar
   `python -m unittest app.characterization_tests.test_cash_report_batch_identity
   app.characterization_tests.test_cash_shift_sales_report
   app.characterization_tests.test_cash_close_active_orders -v`. **Esperado**: todo en verde (los dos
   existentes pasan gracias al puente T046, sin modificarse) — depende de T041, T042, T045, T046, T047
-- [ ] T049 [US6] Validar el SQL de la Rev. B contra PostgreSQL real **sin dejar rastro**: en
+- [X] T049 [US6] Validar el SQL de la Rev. B contra PostgreSQL real **sin dejar rastro**: en
   `psql` (contenedor `pos`, esquema `tenantlocal`, ver memoria `reference_pos_dev_db_psql_tenantlocal`)
   abrir `BEGIN;`, sembrar dentro de la transacción un turno con una cabecera cuyo `JSONB` tenga 2
   productos y 2 categorías (una con `category_id` nulo), ejecutar el SQL de *backfill* de T043 y
   comprobar que las filas hijas coinciden con el `JSONB`; ejecutar el SQL de reconstrucción del
   `downgrade` y comprobar que el `JSONB` resultante es idéntico (comparado como conjuntos); cerrar
   con `ROLLBACK;` — depende de T043
-- [ ] T050 [US6] Aplicar la Rev. B a la base de desarrollo desde `../pos-backend`
+- [X] T050 [US6] Aplicar la Rev. B a la base de desarrollo desde `../pos-backend`
   (`alembic upgrade <rev_B>`, **no** `head` todavía: la Rev. C aún no existe) y comprobar con
   `alembic current` y `\d tenantlocal.shift_sales_report_products` que las tablas existen y que
   `shift_sales_reports` ya no tiene las columnas `JSONB`; probar `alembic downgrade 2009eabd2e82` y
@@ -591,7 +598,7 @@ de la spec sigue en verde. Todavía hay N+1: lo cierra la Unidad 2.
 productos, categorías), con un *selector de turnos* repetido en cada una, `UNION ALL` de snapshot y
 cálculo en vivo, y recombinación, nombre mostrado, orden y `LIMIT` resueltos en la base de datos.
 
-- [ ] T051 [P] [US6] Crear NUEVO `../pos-backend/app/characterization_tests/test_cash_report_query_budget.py`
+- [X] T051 [P] [US6] Crear NUEVO `../pos-backend/app/characterization_tests/test_cash_report_query_budget.py`
   — compuerta automática de SC-009/FR-018 (research.md D15). Engancha `before_cursor_execute` (mismo
   patrón que `test_orders_billing_summary.py:504` y `test_orders_pagination.py:278`) y exige que el
   número de sentencias sea **igual** con un período pequeño y con 186 turnos, y no supere un techo
@@ -614,7 +621,7 @@ cálculo en vivo, y recombinación, nombre mostrado, orden y `LIMIT` resueltos e
   las cumpliría—, así que el mismo enganche captura el texto del SQL y exige que la sentencia de
   productos contenga `GROUP BY` y `LIMIT` y la de categorías `GROUP BY`; con 12 productos sembrados,
   `top_products` trae exactamente 10 — depende de T048
-- [ ] T052 [P] [US6] Ampliar `../pos-backend/app/characterization_tests/test_cash_report_batch_identity.py`
+- [X] T052 [P] [US6] Ampliar `../pos-backend/app/characterization_tests/test_cash_report_batch_identity.py`
   (SC-008, FR-017, FR-022; el archivo ya lo creó T047, y es paralelizable con T051, que escribe otro
   archivo) con las clases: (a) el
   **ejemplo numérico del escenario 1 de US6**: Turno A cerrado con snapshot (Cono doble 10 u /
@@ -637,7 +644,7 @@ cálculo en vivo, y recombinación, nombre mostrado, orden y `LIMIT` resueltos e
   `cash_register_id` nunca mezcla turnos de otra caja ni de otro tenant (SC-004). Cada turno en una
   caja distinta (límite SQLite de T051). Los casos de orden de (c) deben fallar contra el agregador
   actual — depende de T048
-- [ ] T053 [US6] En `../pos-backend/app/api/v1/cash/reports.py` extraer la **rama en vivo
+- [X] T053 [US6] En `../pos-backend/app/api/v1/cash/reports.py` extraer la **rama en vivo
   compartida** (research.md D10): una única definición de las consultas en vivo —ventas pagadas
   agrupadas por (turno, variante) y por (turno, categoría), con el `LEFT JOIN` a `Category` y
   "Sin categoría" cuando es nulo— parametrizada por una lista de condiciones sobre `cash_shifts`
@@ -649,7 +656,7 @@ cálculo en vivo, y recombinación, nombre mostrado, orden y `LIMIT` resueltos e
   del cierre y el de los turnos en vivo no pueden divergir. Los tests existentes lo invocan
   directamente — depende de T048 y de **haber visto en rojo** T051 y los casos de orden de T052
   (la reescritura no empieza hasta que las compuertas hayan fallado contra el código actual)
-- [ ] T054 [US6] Reescribir `aggregate_shifts` en `../pos-backend/app/api/v1/cash/reports.py`
+- [X] T054 [US6] Reescribir `aggregate_shifts` en `../pos-backend/app/api/v1/cash/reports.py`
   (reemplaza el puente de T046): deja de recibir `list[CashShift]` y recibe el selector de turnos
   (T053). **Cuatro consultas fijas**, cada una con el selector repetido (research.md D10, sin listas
   de ids en los parámetros): (1) turnos incluidos con `LEFT JOIN` a `ShiftSalesReport` → `shift_ids`
@@ -665,20 +672,20 @@ cálculo en vivo, y recombinación, nombre mostrado, orden y `LIMIT` resueltos e
   de SQL, research.md D11). Salida con la misma forma de antes (`shift_ids`, `is_live`, `total_sales`
   `Decimal`, `order_count`, `avg_ticket`, `top_products`, `categories` con `revenue` `Decimal`). Sin
   `jsonb_*`, `DISTINCT ON` ni `array_agg ... ORDER BY` — depende de T053
-- [ ] T055 [US6] Reemplazar `_shifts_for_period` por la construcción del selector de período en
+- [X] T055 [US6] Reemplazar `_shifts_for_period` por la construcción del selector de período en
   `../pos-backend/app/api/v1/cash/reports.py`: las mismas condiciones de hoy (`opened_at >= start`,
   `opened_at < end` con `resolve_timezone`/`local_day_bounds_utc`, más `cash_register_id` opcional;
   `reports.py:216-230`) pero devueltas como condiciones, no como lista de objetos; adaptar
   `compute_period_sales_report` (`reports.py:233-252`) para pasarlas a `aggregate_shifts` sin cambiar
   su firma ni las claves de su salida (`period`, `date_from`, `date_to`, `cash_register_id` + las del
   agregador) — depende de T054
-- [ ] T056 [US6] Adaptar los dos endpoints que llaman al agregador en
+- [X] T056 [US6] Adaptar los dos endpoints que llaman al agregador en
   `../pos-backend/app/api/v1/cash/router.py`: `shift_sales_report` (línea 187) usa el selector
   `CashShift.id == shift_id`; `current_shift_report` (líneas 223-238) usa `status == 'open'` más
   `cash_register_id` opcional. Mantener el `404 "La caja no tiene un turno abierto"` cuando se pide
   una caja sin turno abierto, y el `200` con ceros —nunca `404`— cuando no se filtra por caja y no hay
   turnos abiertos. Sin cambios de firma, de `response_model` ni de claves — depende de T054, T055
-- [ ] T057 [US6] **Verificar la Unidad 2**: en `../pos-backend`, ejecutar los cuatro módulos de
+- [X] T057 [US6] **Verificar la Unidad 2**: en `../pos-backend`, ejecutar los cuatro módulos de
   `app/characterization_tests/` (`test_cash_report_query_budget.py`,
   `test_cash_report_batch_identity.py`, `test_cash_shift_sales_report.py`,
   `test_cash_close_active_orders.py`) con `python -m unittest app.characterization_tests.<módulo> ... -v`.
@@ -695,20 +702,20 @@ devuelve los mismos valores (SC-008, SC-009, FR-018/FR-019/FR-020/FR-022).
 trae cuando hay que mostrarla. El resultado visible (contador, lista y su orden, cuerpo del 409) no
 cambia. **No se crea ningún índice para esto**: `idx_active_order_per_participant` (spec 025) ya basta.
 
-- [ ] T058 [P] [US6] Añadir `count_active_orders(db) -> int` en
+- [X] T058 [P] [US6] Añadir `count_active_orders(db) -> int` en
   `../pos-backend/app/api/v1/cash/active_orders.py`: `SELECT count(*)` sobre el **mismo predicado**
   que `list_active_orders` (`CustomerOrder.status.in_(_NON_TERMINAL_ORDER_STATUSES)`). Compartir el
   predicado en una sola definición para que contador y lista no puedan divergir
-- [ ] T059 [US6] En `close_shift` (`../pos-backend/app/api/v1/cash/router.py:118-132`) contar primero
+- [X] T059 [US6] En `close_shift` (`../pos-backend/app/api/v1/cash/router.py:118-132`) contar primero
   con `active_orders.count_active_orders(db)` y solo si es `> 0` traer la lista con
   `list_active_orders`; si entre el conteo y la lista el pedido se resolvió (lista vacía), el cierre
   continúa con el estado vigente (research.md D12). El cuerpo del `409` (texto con `len(active)`,
   `active_orders` plano) y su orden no cambian — depende de T058, T045
-- [ ] T060 [US6] En `shift_sales_report` (`../pos-backend/app/api/v1/cash/router.py:194-196`)
+- [X] T060 [US6] En `shift_sales_report` (`../pos-backend/app/api/v1/cash/router.py:194-196`)
   calcular `active_orders_count` con `active_orders.count_active_orders(db)` en lugar de
   `len(active_orders.list_active_orders(db))`, manteniendo `None` cuando el turno no está `open`
   (FR-012) — depende de T058, T056 (misma función)
-- [ ] T061 [US6] Ampliar `../pos-backend/app/characterization_tests/test_cash_report_query_budget.py`
+- [X] T061 [US6] Ampliar `../pos-backend/app/characterization_tests/test_cash_report_query_budget.py`
   (mismo archivo que T051) con: (a) `count_active_orders` coincide con `len(list_active_orders)`
   sobre un conjunto con pedidos activos de los tres canales (`DINE_IN`, `TAKEAWAY`, `DELIVERY`) y
   pedidos `pagada`/`cancelada` que no cuentan; (b) con **0** pedidos activos `close_shift` no invoca
@@ -716,7 +723,7 @@ cambia. **No se crea ningún índice para esto**: `idx_active_order_per_particip
   (c) `shift_sales_report` de un turno abierto ejecuta el mismo número de sentencias con 1 y con 50
   pedidos activos y devuelve el mismo `active_orders_count` que antes — depende de T051 (mismo
   archivo), T059 y T060
-- [ ] T062 [US6] **Verificar la Unidad 3**: en `../pos-backend`, ejecutar
+- [X] T062 [US6] **Verificar la Unidad 3**: en `../pos-backend`, ejecutar
   `app/characterization_tests/test_cash_report_query_budget.py`,
   `app/characterization_tests/test_cash_shift_sales_report.py` y
   `app/characterization_tests/test_cash_close_active_orders.py` con
@@ -731,14 +738,14 @@ cambia. **No se crea ningún índice para esto**: `idx_active_order_per_particip
 de `customer_orders` ya bastan y un índice cubriente en `sales` se descartó por la medición— creados
 con `CREATE INDEX CONCURRENTLY`, repetibles sin fallar y con reparación de índices inválidos.
 
-- [ ] T063 [P] [US6] Declarar los dos índices en `CashShift.__table_args__`
+- [X] T063 [P] [US6] Declarar los dos índices en `CashShift.__table_args__`
   (`../pos-backend/app/models/cash_shift.py:43-58`, antes del dict `{"schema": "tenant"}`):
   `Index("ix__cash_shifts__opened_at", "opened_at")` e
   `Index("ix__cash_shifts__register_opened_at", "cash_register_id", "opened_at")`. Los nombres deben
   ser **idénticos** a los de la Rev. C (T064): si no, un tenant nuevo (creado con `create_all`) y uno
   migrado tendrían nombres distintos y `IF NOT EXISTS` no los reconocería (research.md D14 §3). No
   tocar `idx_open_shift_per_register` ni el índice existente de `cash_register_id`
-- [ ] T064 [US6] Crear la **Revisión C** en NUEVO
+- [X] T064 [US6] Crear la **Revisión C** en NUEVO
   `../pos-backend/alembic/versions/<rev>_119_report_indexes.py` (`down_revision` = el id real de la
   Rev. B de T043; **no transaccional**; `@for_each_tenant_schema`; guarda `_has_table(schema,
   "cash_shifts")`). Por esquema y por cada uno de los dos índices, dentro de
@@ -751,7 +758,7 @@ con `CREATE INDEX CONCURRENTLY`, repetibles sin fallar y con reparación de índ
   `transaction_per_migration=True` (`alembic/env.py:99`) solo se puede ejercitar con la revisión
   escrita; si fallara, usar la alternativa de respaldo (conexión separada con
   `isolation_level="AUTOCOMMIT"`) y dejar el motivo anotado en el docstring — depende de T043
-- [ ] T065 [US6] Aplicar la Rev. C a la base de desarrollo (`alembic upgrade head` desde
+- [X] T065 [US6] Aplicar la Rev. C a la base de desarrollo (`alembic upgrade head` desde
   `../pos-backend`) y comprobar en `psql`, **por nombre de índice y esquema**, que ambos índices de
   `cash_shifts` existen con `indisvalid = true` en `tenantlocal` (y en `tenant_default` si tiene
   `cash_shifts`); luego `alembic downgrade -1 && alembic upgrade head` para confirmar que se puede
@@ -770,18 +777,18 @@ trazabilidad y la verificación manual con volumen real de `quickstart.md` §10 
 desechable** (SC-010). Los umbrales de tiempo y el uso de índices no los cubre ningún test automático:
 solo la compuerta de consultas (T051) lo es.
 
-- [ ] T066 Ejecutar la suite completa del backend **sola** (nunca en paralelo con la suite del
+- [X] T066 Ejecutar la suite completa del backend **sola** (nunca en paralelo con la suite del
   frontend: la contención infla los fallos, memoria `reference_pos_suite_frontend_fallos_preexistentes`):
   `python -m unittest discover -s app/characterization_tests -p 'test_*.py'` en `../pos-backend`.
   **Esperado**: todo en verde; la línea base de la spec es de 1541 tests (memoria
   `project_spec_119_implementado`) más los nuevos de US6. Cualquier fallo se reporta con su salida,
   no se descarta como preexistente sin comprobarlo contra `git stash`/la rama base — depende de
   T057, T062, T065
-- [ ] T067 Comprobar SC-008 por hash: `sha256sum
+- [X] T067 Comprobar SC-008 por hash: `sha256sum
   ../pos-backend/app/characterization_tests/test_cash_shift_sales_report.py
   ../pos-backend/app/characterization_tests/test_cash_close_active_orders.py` y comparar con los
   valores de T039. **Esperado**: idénticos (los dos archivos no se modificaron durante US6)
-- [ ] T068 Trazabilidad y portabilidad (Principio XII, plan.md Constraints): (a)
+- [X] T068 Trazabilidad y portabilidad (Principio XII, plan.md Constraints): (a)
   `grep -nEi "jsonb_|distinct on|array_agg" ../pos-backend/app/api/v1/cash/*.py` debe **no devolver
   nada** (SQL de la aplicación portable); (b) `grep -n "FR-018\|FR-019\|FR-022\|FR-023\|SC-008\|SC-009"
   ../pos-backend/app/characterization_tests/test_cash_report_*.py` confirma que los tests nuevos
@@ -791,7 +798,7 @@ solo la compuerta de consultas (T051) lo es.
   `pos-heladeria` no tienen cambios atribuibles a US6 (`git status`); (e) FR-019: `grep -n "setdefault"
   ../pos-backend/app/api/v1/cash/reports.py` **no debe devolver nada** (hoy da 2 resultados en
   `aggregate_shifts`, líneas 142 y 150: el desglose ya no se acumula en diccionarios del servidor)
-- [ ] T069 Verificación manual **quickstart.md §10.1–§10.5** (prerrequisito: `pos-api` nativo con
+- [X] T069 Verificación manual **quickstart.md §10.1–§10.5** (prerrequisito: `pos-api` nativo con
   `uvicorn`, no Docker — memoria `reference_pos_api_docker_vs_nativo`): crear el tenant desechable
   (`vol119`), sembrar el volumen con `quickstart-volume.sql`, y medir con `curl` (mediana de 5):
   186 turnos **sin snapshot** ≤ 2 s; 186 turnos **con snapshot** (`only_freeze=1`) ≤ 1 s con
@@ -800,7 +807,7 @@ solo la compuerta de consultas (T051) lo es.
   Anotar lo medido en la tabla "Registro de resultados" de `quickstart.md`. Si §10.3 incumpliera
   SC-010, reabrir la decisión del índice cubriente sobre `sales` (research.md D13) antes de seguir —
   depende de T066
-- [ ] T070 Verificación manual **quickstart.md §10.6** (planes de ejecución): capturar el SQL de las
+- [X] T070 Verificación manual **quickstart.md §10.6** (planes de ejecución): capturar el SQL de las
   cuatro consultas del reporte y ejecutarlas con `EXPLAIN (ANALYZE, BUFFERS)` en el tenant
   desechable. **Esperado**: ningún `Seq Scan` sobre `sales`, `sale_items` ni `customer_orders`; el
   conteo y la lista de pedidos activos usan `idx_active_order_per_participant`; `cash_shifts` usa
@@ -809,24 +816,24 @@ solo la compuerta de consultas (T051) lo es.
   `cash_shift_id`. Confirmar por **columnas** (no por nombre, varía por entorno) el índice de
   `sales (cash_shift_id)`. Si el `EXPLAIN` dejara de mostrar el índice de la spec 025, aplicar la
   contingencia de research.md D12 — depende de T069
-- [ ] T071 Verificación manual **quickstart.md §10.7** (FR-021, SC-010): con el tenant cargado,
+- [X] T071 Verificación manual **quickstart.md §10.7** (FR-021, SC-010): con el tenant cargado,
   `alembic downgrade -1`, dejar un cobro repetido cada segundo y ejecutar `alembic upgrade head` en
   paralelo. **Esperado**: ningún cobro falla ni espera a la migración, ambos índices quedan con
   `indisvalid = t`, `downgrade -1 && upgrade head` termina sin errores, y un índice marcado inválido
   a propósito (`alembic stamp <rev_B>` + `upgrade head`) se detecta y se reconstruye. Si
   `autocommit_block()` fallara aquí, aplicar el respaldo de T064 — depende de T069
-- [ ] T072 Verificación manual **quickstart.md §10.8** (Principio VIII): calcular la huella de las
+- [X] T072 Verificación manual **quickstart.md §10.8** (Principio VIII): calcular la huella de las
   filas de las dos tablas hijas, `alembic downgrade 2009eabd2e82`, comprobar que el `JSONB` se
   reconstruyó, `alembic upgrade head` y repetir la huella. **Esperado**: idéntica. Después, la
   idempotencia frente a la forma final: `alembic stamp 2009eabd2e82` + `upgrade head` sin errores ni
   filas duplicadas, huella igual (paso 5) y, para la guarda de la Rev. A añadida en T043,
   `alembic stamp 607ff811ddff` + `upgrade head` con el mismo resultado (paso 6, quickstart §10.8) —
   depende de T069
-- [ ] T073 Cerrar **quickstart.md §10.9**: eliminar el tenant desechable (flujo habitual de baja, o
+- [X] T073 Cerrar **quickstart.md §10.9**: eliminar el tenant desechable (flujo habitual de baja, o
   `DROP SCHEMA <ESQUEMA> CASCADE` y su fila en `shared.tenants`), confirmar que no queda nada con el
   prefijo `[119-vol]` en ningún esquema y completar la tabla "Registro de resultados" de
   `quickstart.md` con los valores medidos y su veredicto — depende de T070, T071, T072
-- [ ] T074 `git status` en `pos-specs` y `../pos-backend` — no commitear salvo que el usuario lo pida
+- [X] T074 `git status` en `pos-specs` y `../pos-backend` — no commitear salvo que el usuario lo pida
   (Principio XV). Si lo pide: un commit pequeño por unidad (1 a 4), en inglés, Conventional
   Commits, **sin** atribución de IA (preferencia del usuario). **Aviso**: el código de US1–US5 aún no
   está commiteado y comparte archivos con US6 (`router.py`, `reports.py`); la decisión de commitearlo

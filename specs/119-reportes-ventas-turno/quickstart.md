@@ -176,13 +176,16 @@ $40.000 → Malteada 4 u / $36.000, ventas $156.000, 10 órdenes, ticket promedi
    Verificar el resumen impreso al final. Todo lo sembrado lleva el prefijo `[119-vol]`. El período
    de medición es **octubre de 2026**, que contiene exactamente 186 turnos.
 3. Obtener un token de administrador del tenant desechable y definir `API`, `HOST` y `TOKEN` para
-   los `curl` siguientes (header de tenant + `Authorization: Bearer`).
+   los `curl` siguientes. El tenant se resuelve por el header **`x-tenant-host`** (no por `Host`):
+   `HOST` es el `host` del tenant (p. ej. `vol119`), `API` es `http://localhost:8000/api/v1` y el
+   token sale de `POST $API/auth/login` con ese mismo header y el correo/contraseña del admin
+   (la contraseña del tenant desechable debe tener entre 8 y 12 caracteres).
 
 ### 10.3 Peor caso: 186 turnos sin snapshot (SC-010 ≤ 2 s)
 
 ```bash
 for i in 1 2 3 4 5; do
-  curl -s -o /dev/null -w '%{time_total}\n' -H "Host: $HOST" -H "Authorization: Bearer $TOKEN" \
+  curl -s -o /dev/null -w '%{time_total}\n' -H "x-tenant-host: $HOST" -H "Authorization: Bearer $TOKEN" \
     "$API/cash/reports/period?period=month&date=2026-10-15"
 done
 ```
@@ -206,7 +209,7 @@ no debe duplicar filas ni fallar.
 ### 10.5 Pedidos activos con 1.000.000 de pedidos históricos (SC-010 ≤ 200 ms)
 
 ```bash
-curl -s -o /dev/null -w '%{time_total}\n' -H "Host: $HOST" -H "Authorization: Bearer $TOKEN" "$API/cash/active-orders"
+curl -s -o /dev/null -w '%{time_total}\n' -H "x-tenant-host: $HOST" -H "Authorization: Bearer $TOKEN" "$API/cash/active-orders"
 ```
 
 **Esperado**: ≤ **200 ms** y 6 pedidos en la lista (los activos sembrados). Con un turno abierto,
@@ -294,14 +297,36 @@ Eliminar el tenant desechable (flujo habitual de baja o `DROP SCHEMA <ESQUEMA> C
 
 | Verificación | Umbral | Medido | ¿OK? |
 |---|---|---|---|
-| 10.1 Tests (presupuesto de consultas, identidad, existentes sin modificar) | todo en verde | | |
-| 10.3 Reporte de 186 turnos sin snapshot | ≤ 2 s (mediana de 5) | | |
-| 10.4 Reporte de 186 turnos con snapshot | ≤ 1 s (mediana de 5) | | |
-| 10.4 Mismos valores con y sin snapshot | idénticos | | |
-| 10.5 Pedidos activos con 1.000.000 de históricos | ≤ 200 ms | | |
-| 10.6 `Seq Scan` en `sales` / `sale_items` / `customer_orders` | ninguno | | |
-| 10.6 Índices de `cash_shifts` usados | sí | | |
-| 10.7 Cobros durante la migración de índices | ninguno falla ni espera | | |
-| 10.7 Índices válidos / reejecución / reparación | `indisvalid = t`, sin errores | | |
-| 10.8 Huella antes = después de la ida y vuelta | idéntica | | |
-| 10.8 Idempotencia frente a la forma final (pasos 5 y 6: `stamp` en A y en `607ff811ddff`) | sin errores, huella idéntica | | |
+| 10.1 Tests (presupuesto de consultas, identidad, existentes sin modificar) | todo en verde | 53 tests OK (12 presupuesto + 21 identidad + 20 existentes); `sha256sum` de los 2 existentes idéntico a T039; suite completa 1573 OK | ✔ |
+| 10.3 Reporte de 186 turnos sin snapshot | ≤ 2 s (mediana de 5) | 0,348 s (0,53 / 0,35 / 0,33 / 0,34 / 0,36); `shift_ids`=186, `is_live=true` | ✔ |
+| 10.4 Reporte de 186 turnos con snapshot | ≤ 1 s (mediana de 5) | 0,033 s (0,031 / 0,030 / 0,033 / 0,033 / 0,033); `is_live=false` | ✔ |
+| 10.4 Mismos valores con y sin snapshot | idénticos | `total_sales`, `order_count`, `avg_ticket`, `top_products`, `categories` y `shift_ids` iguales (27.342 órdenes, $391.995.000); `only_freeze=1` repetido no duplica filas | ✔ |
+| 10.5 Pedidos activos con 1.000.000 de históricos | ≤ 200 ms | 5,6 ms (12 / 5,6 / 5,2 / 6,4 / 5,2); 6 pedidos; `active_orders_count=6`; `409` con 6 elementos | ✔ |
+| 10.6 `Seq Scan` en `sales` / `sale_items` / `customer_orders` | ninguno | Ninguno en ningún escenario (congelado, sin snapshot, con y sin filtro de caja, conteo y lista de activos) | ✔ |
+| 10.6 Índices de `cash_shifts` usados | sí | `ix__cash_shifts__opened_at` (sin caja) e `ix__cash_shifts__register_opened_at` (con caja) sin forzar el planificador; con `enable_seqscan=off` también la cabecera y las tablas de snapshot se leen por índice; `idx_active_order_per_participant` en activos; `sales(cash_shift_id)` = `ix_tenant_sales_cash_shift_id` | ✔ |
+| 10.7 Cobros durante la migración de índices | ninguno falla ni espera | 40 `POST /sales` (uno por segundo), todos `201`, máx. 0,068 s; la migración duró 0,81 s; `autocommit_block()` dentro del bucle de tenants funcionó (no hizo falta el respaldo) | ✔ |
+| 10.7 Índices válidos / reejecución / reparación | `indisvalid = t`, sin errores | Todos `t` en los 4 esquemas; `downgrade -1 && upgrade head` sin errores; índice marcado inválido + `stamp` de la Rev. B + `upgrade head` → detectado, reconstruido, `t` | ✔ |
+| 10.8 Huella antes = después de la ida y vuelta | idéntica | `vol119`: 174.508 productos / 17.520 categorías, md5 idéntico; `heladeria` (datos reales: 6 + 4 filas) idéntico; el `JSONB` se reconstruyó con 2.190 cabeceras | ✔ |
+| 10.8 Idempotencia frente a la forma final (pasos 5 y 6: `stamp` en A y en `607ff811ddff`) | sin errores, huella idéntica | Ambos pasos sin errores ni filas duplicadas, huella idéntica (la guarda de la Rev. A omite el esquema) | ✔ |
+
+**Medido el 2026-10-15** en el tenant desechable `vol119` (2.190 turnos, 328.500 ventas, 985.500 líneas y
+1.000.006 pedidos; PostgreSQL 16 local). Los tiempos de 10.3–10.5 incluyen la autenticación y la resolución
+del tenant (son tiempos de `curl` de extremo a extremo, no solo de la consulta). El tenant se eliminó en 10.9.
+
+### Recorrido manual de US1–US5 (T036) sobre el mismo tenant
+
+| Escenario | Cómo | Resultado |
+|---|---|---|
+| §1 turno que cruza la medianoche | 4 cobros reales por `POST /sales`; el turno se cerró por la API y luego se movieron `opened_at`/`closed_at`/`sold_at` en la base para simular abrir el 12 a las 17:00 y cerrar el 13 a las 02:00 | `20000.00` / 4 órdenes / ticket `5000.00`, `is_live=false` |
+| §2 reporte "del día" | `period=day` el 12 y el 13 | El turno cuenta para el 12 y no para el 13 |
+| §3 / §3b bloqueo de cierre | 6 pedidos activos sembrados; cierre desde la interfaz | `409` con 6 pedidos; el modal queda abierto con el aviso ámbar, una fila por pedido y enlace "Ver pedido →"; sin acción de "transferir". Tras anular los 6, el mismo modal cierra el turno ("Cuadre perfecto") |
+| §4 turno en curso | Turno abierto con 41 ventas | "Turno en curso · 6 pedido(s) activo(s)", `$ 205.000`, 41 órdenes |
+| §5 / §5b turno sin ventas | Abierto y cerrado de inmediato | API `0.00` / 0 / `0.00` con listas vacías; interfaz `$ 0` / `0` / `$ 0` con ambos estados vacíos y sin "NaN" ni "undefined" |
+| §6 inmutabilidad | Anular una venta del turno cerrado | Mismo `total_sales`, `order_count`, `top_products` y `categories` |
+| §7 aislamiento por caja | `cash_register_id` = Caja 1 / Caja 2 / inexistente | 63 y 62 turnos sin intersección; inexistente → `404` |
+| §8 agregación exacta | `period=week` contra SQL sobre las ventas crudas | Top-10 y totales (`$88.740.000`, 6.219 órdenes) idénticos al centavo |
+| §9 panel de administración | Selector de período, "Turno actual" y "Día" | Cifras del panel (`$ 12.850.000`, 923, `$ 13.922`) = API (`12850000.00`, 923, `13921.99`) |
+
+Hallazgo corregido durante el recorrido: un turno cerrado sin ventas devolvía `total_sales: "0"` en vez de
+`"0.00"` (la comprobación `Decimal(x or 0)` descartaba la escala de `Decimal("0.00")`); corregido en
+`aggregate_shifts` y cubierto por `test_turno_cerrado_sin_ventas_conserva_la_escala_del_contrato`.

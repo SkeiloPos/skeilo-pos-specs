@@ -453,11 +453,17 @@ tenant NO usa Alembic: ejecuta `create_all` con los modelos vigentes. Consecuenc
 4. Declarar el modelo final es **obligatorio**, no un detalle: sin las clases de las tablas hijas en
    `app/models/`, los tenants nuevos no tendrían dónde guardar el snapshot.
 
-**Punto que solo se puede cerrar en la implementación**: el uso de `autocommit_block()` dentro del
-bucle de `for_each_tenant_schema` con `transaction_per_migration=True` (`alembic/env.py`) no se
-ejercita hasta tener la Rev. C; [quickstart.md](./quickstart.md) §10.7 lo verifica con un cobro
-concurrente. Alternativa de respaldo si fallara: ejecutar los `CREATE INDEX` por una conexión
-separada con `isolation_level="AUTOCOMMIT"`.
+**Punto cerrado en la implementación (2026-10-15)**: `autocommit_block()` dentro del bucle de
+`for_each_tenant_schema` con `transaction_per_migration=True` **funciona** sin el respaldo: la Rev. C
+creó los dos índices en los 4 esquemas con `CREATE INDEX CONCURRENTLY`, se reaplicó con
+`downgrade -1 && upgrade head` y reparó un índice inválido (quickstart §10.7). El respaldo (conexión
+separada con `isolation_level="AUTOCOMMIT"`) no fue necesario.
+
+**Nombres de los `CHECK` de las tablas hijas (2026-10-15)**: la convención de nombres antepone
+`ck__<tabla>__` y con nombres largos (`ck_shift_sales_report_product_units`) PostgreSQL los cortaba a 63
+caracteres (SQLAlchemy los trunca con un hash). Se usaron nombres cortos (`units_nonneg`,
+`revenue_nonneg`) para que el modelo y la Rev. B generen exactamente el mismo nombre sin depender del
+truncamiento.
 
 **Modelo**: `CashShift.__table_args__` declara los dos índices (convención del repositorio: los
 índices viven en el modelo y en la migración, para que `alembic` no detecte deriva).
