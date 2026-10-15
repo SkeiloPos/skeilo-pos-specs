@@ -4200,6 +4200,145 @@ específica, es el camino feliz completo de **toda** venta de mostrador.
 
 ---
 
+### A-128 — [DECISIÓN DE NEGOCIO — spec 119] La tarjeta "Ingresos hoy" del panel de administración deja de cortar por fecha calendario de cada venta: pasa a sumar los turnos de caja cuya fecha de apertura cae en el día consultado
+
+**Qué cambia**: hoy `admin-dashboard.component.ts` (`pos-heladeria`) calcula
+`todayRevenue`/`todayCount` filtrando `salesService.sales()` con
+`new Date(s.sold_at).toDateString() === today` — fecha calendario del
+navegador, basada en el momento de cada venta individual, sobre una página no
+paginada de ventas. Esta decisión reemplaza esa lógica por la atribución por
+turno que exige RN4 (`specs/119-reportes-ventas-turno/spec.md`, FR-005/FR-015):
+el corte "del día" pasa a sumar los turnos cuyo `opened_at` (zona horaria del
+tenant) cae en el día consultado, sin importar la hora de cada venta individual
+dentro del turno, ni la hora calendario del navegador del cajero. La tarjeta en
+sí se reemplaza por completo por un reporte operativo con selector de período
+(turno actual, turno específico, día, semana, mes, rango personalizado) y de
+caja.
+
+**Por qué cambia**: RN4 del planteamiento original de la spec 119 — auditar con
+exactitud turnos que cruzan medianoche sin contaminar el reporte de dos días
+calendario distintos. Un turno abierto a las 17:00 y cerrado a las 02:00 del
+día siguiente hoy reparte sus ventas entre "hoy" y "ayer" según la hora exacta
+de cada venta; con esta decisión, todo el turno se atribuye al día en que se
+abrió.
+
+**Quién y cuándo**: negocio, planteamiento original de
+`specs/119-reportes-ventas-turno/spec.md` ("Contexto y comportamiento actual"),
+confirmado en la sesión de Clarifications del 2026-10-15 (primera pregunta:
+dónde debe mostrarse el reporte operativo).
+
+**Funcionalidades afectadas**: únicamente la tarjeta de inicio del panel de
+administración (`admin-dashboard.component.ts`). La pantalla
+`/dashboard/reports` (`reports-page.component.ts`/`app/api/v1/reports/*`) **no
+cambia** — sigue atribuyendo por fecha calendario de `sold_at`, criterio
+distinto que coexiste a propósito con el nuevo reporte por turno (Assumptions
+de `spec.md`: ambas vistas pueden mostrar cifras distintas para "hoy", y es
+esperado).
+
+**Riesgo asumido**: ninguno nuevo — el valor mostrado en la tarjeta de inicio
+puede diferir del que mostraba antes para turnos que cruzan medianoche; es
+exactamente el comportamiento que la decisión busca (RN4). Ningún dato
+histórico se recalcula ni se persiste de otra forma; es un cambio de qué
+consulta hace el frontend, no del modelo de datos.
+
+**Tests afectados**: verificado por lectura de
+`app/characterization_tests/test_cash_shift_sales_report.py` previo a esta
+spec — sin test `"CONGELA comportamiento actual:"` que proteja el criterio por
+`toDateString()` de `admin-dashboard.component.ts` (`admin-dashboard.component.spec.ts`
+solo cubre iconografía, spec 082); tampoco hay equivalente en
+`pos-backend` porque la tarjeta siempre leyó `GET /sales` directamente, sin
+endpoint propio. Los tests nuevos de esta spec
+(`test_cash_shift_sales_report.py`) citan esta entrada al verificar la
+agregación "del día" por fecha de apertura.
+
+**Decisión relacionada (ampliación US6, FR-022)**: en la sesión de
+Clarifications del 2026-10-15 (ampliación de rendimiento, US6) el negocio fijó
+un orden explícito y estable para el top de productos y las ventas por
+categoría de todo reporte por turno o por período: ingreso descendente; en
+empate, nombre ascendente; en empate de nombre, identificador ascendente
+(`category_id` nulo —"Sin categoría"— al final). Antes ese orden, ante un
+empate exacto de ingreso, dependía del orden accidental en que se recorrían los
+turnos y las filas. Los endpoints de reporte por turno todavía no existen en
+producción (código de la spec 119 sin versionar), así que no hay un
+comportamiento publicado que cambie; se deja constancia aquí por trazabilidad
+(Principios II y XII) y porque es una decisión de negocio, no técnica. No
+afecta a `/dashboard/reports` ni a `app/api/v1/reports/*`.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/119-reportes-ventas-turno/spec.md` (FR-005, FR-015, FR-022,
+Clarifications), `specs/119-reportes-ventas-turno/research.md` (D4, D11, D16).
+
+**Estado (2026-10-15)**: REGISTRADA, implementada en la misma sesión.
+
+---
+
+### A-129 — [DECISIÓN DE NEGOCIO — spec 119] Cerrar un turno de caja con pedidos activos sin cobrar pasa de estar permitido hoy a quedar bloqueado con 409
+
+**Qué cambia**: `specs/006-turnos-caja-arqueo` (ingeniería inversa de
+`close_shift`, `app/api/v1/cash/router.py:101-135`) documenta las reglas
+`RN-CASH-01` a `RN-CASH-18` vigentes sobre el cierre de turno, y ninguna de
+ellas bloquea el cierre por la existencia de pedidos sin cobrar — hoy es
+posible cerrar un turno con pedidos pendientes de pago (de mesa, para llevar o
+domicilio), que simplemente quedan "huérfanos" de turno. Con esta decisión,
+`POST /cash/shifts/{id}/close` responde `409` con la lista de pedidos activos
+(`CustomerOrder.status IN ('recibida', 'abierta', 'bloqueada')`, de **todo el
+tenant**, no solo de la caja que se intenta cerrar — research.md D1 de la
+spec) y no completa el cierre mientras exista al menos uno; el cajero solo
+puede cobrar o anular cada pedido activo para poder cerrar (la acción
+"Transferir al siguiente turno" del planteamiento original se descarta
+explícitamente).
+
+**Evidencia de código**: `close_shift`
+(`app/api/v1/cash/router.py:101-135`, antes de esta spec) no valida
+`CustomerOrder` en ningún punto; `specs/006-turnos-caja-arqueo/reglas-de-negocio.md`
+(`RN-CASH-01`-`RN-CASH-18`) no menciona pedidos activos. Confirmado también por
+grep (research.md D6): ningún test `"CONGELA comportamiento actual:"` protegía
+este vacío como comportamiento deliberado.
+
+**Por qué cambia**: RN5 del planteamiento original de la spec 119 — evitar que
+dinero pendiente de cobro desaparezca del arqueo del turno en que ocurrió el
+pedido; un pedido que queda "flotando" sin turno vigente al cerrar complica la
+reconciliación de efectivo y la auditoría de ventas por turno que es el
+objetivo central de la spec.
+
+**Quién y cuándo**: negocio, planteamiento original de
+`specs/119-reportes-ventas-turno/spec.md`, confirmado en la sesión de
+Clarifications del 2026-10-15 (segunda y tercera pregunta: qué cuenta como
+"pedido activo" y qué pasa si el turno siguiente no existe — ninguna vía para
+cerrar con pedidos activos pendientes).
+
+**Funcionalidades afectadas**: `close_shift` (`app/api/v1/cash/router.py`,
+nueva validación antes del cálculo de arqueo existente, sin tocar
+`RN-CASH-01` a `RN-CASH-17`); nuevo endpoint `GET /cash/active-orders`; en
+`pos-heladeria`, `CashSessionStore.confirmarArqueoYCerrar()` y
+`CashArqueoModalComponent` (módulo `cash-register`), que muestran la lista
+bloqueante con navegación hacia las pantallas existentes de Mesas/Para
+llevar/Domicilios — ninguna acción nueva de "cobrar"/"anular"/"transferir".
+
+**Riesgo asumido**: en un tenant con dos cajas abiertas simultáneamente, un
+pedido pendiente originado en la Caja 1 bloquea también el cierre de la Caja 2
+aunque no tenga relación operativa con ella (research.md D1) — consecuencia
+aceptada del modelo de datos actual, que no liga de forma confiable un pedido
+`TAKEAWAY`/`DELIVERY` a una caja concreta; a confirmar con negocio si aparecen
+tenants multi-caja activos. Hereda además la ventana de carrera ya conocida de
+`close_shift` (A-17, falta de `with_for_update()`) — no se corrige aquí, es de
+otra spec (research.md D7).
+
+**Tests afectados**: ningún test `"CONGELA comportamiento actual:"` protegía
+el vacío (research.md D6) — no se reabre ningún test existente. Los tests
+nuevos (`app/characterization_tests/test_cash_close_active_orders.py`) citan
+esta entrada al verificar el bloqueo de cierre con pedidos activos de los tres
+canales.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/119-reportes-ventas-turno/spec.md` (FR-007, FR-008, FR-009,
+Clarifications), `specs/119-reportes-ventas-turno/research.md` (D1, D6, D7),
+`specs/119-reportes-ventas-turno/contracts/active-orders-close-gate-api.md`.
+
+**Estado (2026-10-15)**: REGISTRADA, implementada en la misma sesión.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
