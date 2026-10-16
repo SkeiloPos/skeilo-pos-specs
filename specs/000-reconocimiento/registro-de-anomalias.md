@@ -71,7 +71,7 @@ prevalece sobre el campo "Decisión de negocio pendiente" de la entrada correspo
 | A-15              | INTENCIONAL [PROTEGIDA], decisión pendiente  | Decisión pendiente **cerrada**: sin ventana de exposición, empezaron a usarla después del blindaje                                                                             | P12     |
 | A-17              | ACCIDENTAL/PENDIENTE                         | Reparto-vs-cierre **mitigado operativamente** (una persona por mesa a la vez)                                                                                                  | P17     |
 | A-18              | PENDIENTE                                    | **Cerrada sin impacto** — nunca hubo cuentas con rol STAFF                                                                                                                     | P13     |
-| A-20 / RN-CASH-09 | DUDOSA                                       | **Mitigado** — la pantalla siempre exige el conteo antes de cerrar                                                                                                             | P14     |
+| A-20 / RN-CASH-09 | DUDOSA                                       | ~~**Mitigado** — la pantalla siempre exige el conteo antes de cerrar~~ **Superada por A-130/A-131 (spec 121)**: el servidor calcula el contado y ya no existe el cierre sin conteo | P14     |
 | A-20 / RN-CASH-13 | DUDOSA                                       | Sigue **PENDIENTE** — sin respuesta concluyente                                                                                                                                | P14     |
 | A-20 / RN-CASH-17 | DUDOSA                                       | **Requisito de negocio nuevo**: snapshot inmutable del cierre + vista de ajustes separada (más estricto que "congelar" o "recalcular")                                         | P14     |
 | A-21              | PENDIENTE                                    | **INTENCIONAL confirmado** — localStorage es el diseño definitivo, no prioridad la cookie httpOnly                                                                             | P15     |
@@ -623,6 +623,12 @@ inventario, facturación y cierre de sesión de mesa): `close_shift` y `add_move
   `table_sessions.close_session`. Sin riesgo retroactivo (son condiciones de carrera, no datos
   almacenados incorrectamente por sí solas).
   **Decisión de negocio pendiente**: la de RN-MESA-02 (arriba).
+  **Actualización (2026-10-15, spec 121)**: la parte de `close_shift` **quedó resuelta por la
+  spec 121** (FR-019): el turno se lee con `SELECT ... FOR UPDATE`
+  (`service.get_shift_for_update`) y el `IntegrityError` del `commit` se traduce a `409`;
+  verificado contra PostgreSQL con 20 pares de cierres simultáneos (siempre un `200` y un `409`,
+  sin `500` ni líneas duplicadas). `add_movement` y las operaciones de mesa/QR de esta entrada
+  **siguen sin lock** y no se tocaron.
 
 ### A-18 — El rol legado `STAFF` se remapeó silenciosamente a `CASHIER`
 
@@ -693,6 +699,11 @@ anula una venta que formaba parte del cálculo, el histórico cambia retroactiva
   **Depende de esto**: la gestoría, que según la Constitución del proyecto usa el conteo de
   efectivo reportado por el arqueo (citado también en registro-riesgos.md R7).
   **Tratamiento acordado**: documentar sin especificar hasta la respuesta del negocio.
+  **Actualización (2026-10-15, spec 121)**: el punto (1) — `RN-CASH-09`, cierre con
+  `counted_amount` del cliente o sin conteo — queda **superado por A-130 y A-131**: el cliente ya
+  no puede enviar el efectivo contado (se rechaza con `422`), el servidor lo calcula del desglose
+  por denominación y una lista vacía significa contado $0 (exige observación si hay diferencia).
+  Los puntos (2) `RN-CASH-13` y (3) `RN-CASH-17` **no cambian**.
 
 ### A-21 — Diseño documentado de cookie `httpOnly` para el comensal nunca se implementó; `localStorage` es el almacén real, agravado por vulnerabilidades XSS conocidas en Angular
 
@@ -4322,7 +4333,8 @@ aceptada del modelo de datos actual, que no liga de forma confiable un pedido
 `TAKEAWAY`/`DELIVERY` a una caja concreta; a confirmar con negocio si aparecen
 tenants multi-caja activos. Hereda además la ventana de carrera ya conocida de
 `close_shift` (A-17, falta de `with_for_update()`) — no se corrige aquí, es de
-otra spec (research.md D7).
+otra spec (research.md D7). **Resuelto por la spec 121** (FR-019): `close_shift` lee el turno con
+`SELECT ... FOR UPDATE` y traduce el `IntegrityError` del `commit` a `409`.
 
 **Tests afectados**: ningún test `"CONGELA comportamiento actual:"` protegía
 el vacío (research.md D6) — no se reabre ningún test existente. Los tests
@@ -4336,6 +4348,215 @@ Clarifications), `specs/119-reportes-ventas-turno/research.md` (D1, D6, D7),
 `specs/119-reportes-ventas-turno/contracts/active-orders-close-gate-api.md`.
 
 **Estado (2026-10-15)**: REGISTRADA, implementada en la misma sesión.
+
+---
+
+### A-130 — [DECISIÓN DE NEGOCIO — spec 121] El efectivo contado del cierre de turno deja de poder enviarlo el cliente: solo lo calcula el servidor a partir del desglose por denominación
+
+**Qué cambia**: hoy `POST /cash/shifts/{id}/close` acepta `counted_amount` desde el
+navegador: si llegan denominaciones lo ignora y suma las líneas, pero si no llegan
+ninguna usa el valor enviado tal cual (`RN-CASH-09`). Con esta decisión (D-1 de la spec),
+el campo `counted_amount` deja de formar parte del contrato de petición: el servidor
+calcula subtotal, efectivo contado y diferencia **solo** a partir de las líneas
+`{denominación, cantidad}` y rechaza con `422` (en español, indicando que se recargue la
+aplicación) cualquier cuerpo que traiga un valor monetario no nulo del cliente
+(`counted_amount`, `total`, `difference`, `subtotal`). La pantalla pasa a rotular el total
+y la diferencia del modal como «estimado».
+
+**Evidencia de código**: `close_shift` (`app/api/v1/cash/router.py:138-153`) — el bloque
+`counted = …` conserva `body.counted_amount` cuando no hay denominaciones;
+`ShiftClose.counted_amount` en `app/api/v1/cash/schemas.py`; confirmado en
+`specs/121-desglose-denominaciones-cierre/research.md` (hallazgo H1).
+
+**Por qué cambia**: el efectivo contado es el dato central de la conciliación de caja y un
+valor enviado por el cliente no se puede auditar contra el desglose que lo respalda; el
+cálculo autoritativo en el servidor hace que «la suma de los subtotales = efectivo
+contado» valga por construcción (FR-001, FR-021).
+
+**Quién y cuándo**: el solicitante de la spec, sesión de clarificación del 2026-10-15
+(`specs/121-desglose-denominaciones-cierre/spec.md`, decisión D-1).
+
+**Funcionalidades afectadas**: `close_shift` y `ShiftClose`
+(`app/api/v1/cash/`); `CashSessionStore.confirmarArqueoYCerrar()` y
+`CashArqueoModalComponent` en `pos-heladeria` (dejan de enviar `counted_amount`); la regla
+**A-20 / `RN-CASH-09`** (cierre sin conteo físico obligatorio), que queda superada;
+`app/scripts/e2e_qr_flow.py`. Exige despliegue **coordinado** de backend y frontend (sin
+ventana de compatibilidad): un cajero con la pantalla anterior abierta deberá recargar.
+
+**Riesgo asumido**: el cajero que tenga el modal abierto durante el despliegue perderá el
+conteo tecleado y tendrá que recargar (costo aceptado en la spec); el rechazo del campo
+es el mecanismo que detecta la pantalla desactualizada.
+
+**Tests afectados**: ningún test `"CONGELA comportamiento actual:"` protege este
+comportamiento (verificado por `grep`). Las 25 llamadas a `router.close_shift` de 4 suites
+de caja (`test_cash_close_active_orders`, `test_cash_report_query_budget`,
+`test_cash_report_batch_identity`, `test_cash_shift_sales_report`) más
+`app/scripts/e2e_qr_flow.py` se adaptan al nuevo contrato, citando D-1/D-2; la intención de
+cada prueba no cambia.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/121-desglose-denominaciones-cierre/spec.md` (D-1, FR-001, FR-002),
+`research.md` (H1, R4), `contracts/close-shift-api.md`.
+
+**Estado (2026-10-15)**: REGISTRADA, implementada.
+
+---
+
+### A-131 — [DECISIÓN DE NEGOCIO — spec 121] Deja de existir el cierre «sin conteo»: una lista de denominaciones vacía significa efectivo contado $0
+
+**Qué cambia**: hoy un cierre sin `counted_amount` y sin denominaciones deja el efectivo
+contado vacío (`NULL`) y el turno se cierra sin conciliación (`RN-CASH-09`, A-20). Con
+esta decisión (D-2 de la spec), `denominations` vacía (o con todas las cantidades en `0`)
+significa **efectivo contado $0** (caja vacía): el servidor concilia siempre y, si hay
+esperado, la diferencia es distinta de cero y exige observación (`RN-CASH-10`). Es un
+contrato de la API: la pantalla conserva su bloqueo con todo en cero, de modo que «caja
+vacía» solo se declara por API.
+
+**Evidencia de código**: `close_shift` (`app/api/v1/cash/router.py:138-153`) — la rama
+`counted is None` omite `service.reconcile`; hallazgo H1 de
+`specs/121-desglose-denominaciones-cierre/research.md`.
+
+**Por qué cambia**: un turno cerrado sin ningún conteo no se puede conciliar ni auditar;
+tratar la ausencia de conteo como $0 obliga a explicar la diferencia en la observación y
+elimina el estado ambiguo «no se contó».
+
+**Quién y cuándo**: el solicitante de la spec, sesión de clarificación del 2026-10-15
+(decisión D-2).
+
+**Funcionalidades afectadas**: `close_shift`; reportes de cierre (un turno nuevo siempre
+trae `counted_amount` numérico); la regla **A-20 / `RN-CASH-09`**, que queda superada. Los
+turnos históricos cerrados «sin conteo» conservan su `counted_amount` nulo y siguen siendo
+consultables (US5).
+
+**Riesgo asumido**: las 25 llamadas de prueba que cerraban «sin conteo» pasan a necesitar
+observación o un desglose; un cliente por API que cerraba sin enviar nada recibe ahora un
+`422` por diferencia sin observación.
+
+**Tests afectados**: las mismas 4 suites de caja y `e2e_qr_flow.py` que A-130; ningún test
+protegido.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/121-desglose-denominaciones-cierre/spec.md` (D-2, FR-003, FR-008),
+`research.md` (R11), `contracts/close-shift-api.md`.
+
+**Estado (2026-10-15)**: REGISTRADA, implementada.
+
+---
+
+### A-132 — [DECISIÓN DE NEGOCIO — spec 121] Las líneas de desglose con cantidad cero dejan de guardarse; las ya guardadas se descartan en la migración
+
+**Qué cambia**: hoy `cash_count_denominations` acepta filas con `quantity = 0`
+(`CHECK quantity >= 0`, `DenominationIn.quantity ge=0`). Con esta decisión (D-3 de la
+spec), solo se persisten las líneas con cantidad **mayor que cero**: el servidor descarta
+las de cantidad `0` al cerrar, la restricción de base de datos pasa a `quantity > 0`
+(FR-015 como garantía de BD) y la migración elimina las filas existentes con cantidad `0`.
+
+**Evidencia de código**: `app/models/cash_count_denomination.py`
+(`ck_cash_count_quantity_positive`: `quantity >= 0`); `DenominationIn` en
+`app/api/v1/cash/schemas.py`; BD de desarrollo (2026-10-15): 0 filas con cantidad `0` en
+las 35 filas de `heladeria` (research.md H5).
+
+**Por qué cambia**: una línea con cantidad cero no aporta información al desglose y
+ensucia el reporte; la regla se garantiza en la base de datos para que ninguna vía de
+escritura pueda reintroducirlas.
+
+**Quién y cuándo**: el solicitante de la spec, sesión de clarificación del 2026-10-15
+(decisión D-3).
+
+**Funcionalidades afectadas**: `close_shift` (persistencia del arqueo); migración de datos
+de `cash_count_denominations`; el reporte de cierre (solo muestra líneas con cantidad > 0).
+
+**Riesgo asumido**: la pérdida de las filas con cantidad `0` es irreversible desde el
+`downgrade` y solo restaurable desde el respaldo `pg_dump --table` previo (paso operativo
+del quickstart); en desarrollo es un no-op.
+
+**Tests afectados**: ninguno protegido; pruebas nuevas de migración y de restricción.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/121-desglose-denominaciones-cierre/spec.md` (D-3, FR-015),
+`research.md` (R3), `data-model.md` §2 y §6.
+
+**Estado (2026-10-15)**: REGISTRADA, implementada.
+
+---
+
+### A-133 — [DECISIÓN DE NEGOCIO — spec 121] Cada línea del desglose registra su tipo (billete o moneda), tomado del catálogo de denominaciones del negocio
+
+**Qué cambia**: hoy `cash_count_denominations` guarda solo valor y cantidad. Con esta
+decisión (D-4 de la spec), cada línea guarda además `kind` (`'billete'` | `'moneda'`) como
+**snapshot** (sin clave foránea al catálogo), deducido por el servidor del catálogo de
+denominaciones del tenant (`denomination_catalog`, tabla nueva y de solo lectura en esta
+spec). Las filas existentes reciben su tipo por valor desde el catálogo en la migración, y
+los tenants nuevos nacen con el catálogo COP por defecto sembrado (11 valores:
+6 billetes y 5 monedas).
+
+**Evidencia de código**: `app/models/cash_count_denomination.py` (sin columna de tipo);
+research.md H2 y R1–R3; `data-model.md` §1–§2.
+
+**Por qué cambia**: el reporte de cierre debe mostrar «Denominación · Tipo · Cantidad ·
+Subtotal» y el cliente no debe decidir el tipo (FR-001); el snapshot protege los turnos
+cerrados de cualquier cambio futuro del catálogo (FR-014).
+
+**Quién y cuándo**: el solicitante de la spec, sesión de clarificación del 2026-10-15
+(decisión D-4).
+
+**Funcionalidades afectadas**: persistencia del desglose, reporte de cierre
+(`GET /cash/shifts/{id}/report`, cambio aditivo), nuevo `GET /cash/denominations`, modal
+de arqueo (construye sus filas desde el catálogo), `tenant_create()` (siembra del
+catálogo), migración de datos.
+
+**Riesgo asumido**: la migración **aborta** si encuentra filas con una denominación fuera
+del catálogo (compuerta FR-028; nada se descarta en silencio) y exige resolverlo con el
+negocio antes de migrar; `kind` queda `NOT NULL`, por lo que la fase de datos **no se
+despliega sola** (se despliega junto con el contrato del cierre).
+
+**Tests afectados**: ninguno protegido; pruebas nuevas de catálogo, siembra y migración.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/121-desglose-denominaciones-cierre/spec.md` (D-4, FR-009 a FR-014, FR-028),
+`research.md` (R1, R2, R3), `data-model.md`, `contracts/denomination-catalog-api.md`.
+
+**Estado (2026-10-15)**: REGISTRADA, implementada.
+
+---
+
+### A-134 — [DECISIÓN DE NEGOCIO — spec 121] El turno registra quién lo cerró («Contado por») y el campo de observación del arqueo queda siempre visible
+
+**Qué cambia**: dos cambios menores de comportamiento (D-5 y D-6 de la spec):
+(a) hoy `close_shift` descarta al usuario que confirma el cierre (`_: User`) y el turno
+solo conserva `user_id`/`user_name` de **quien lo abrió**; con esta decisión el turno
+registra `closed_by_user_id` y `closed_by_user_name` (snapshot del nombre al cerrar, FR-029)
+y el reporte lo muestra como «Contado por: …», sin inferirlo en los turnos históricos
+(quedan en `NULL`); (b) hoy el campo de observación del modal solo se muestra cuando la
+estimación arroja diferencia; con esta decisión queda **siempre visible** (opcional si
+cuadra, obligatorio si no) (FR-025).
+
+**Evidencia de código**: `close_shift` con `_: User` (`app/api/v1/cash/router.py`),
+research.md H9; `cash-arqueo-modal.component.ts` — el bloque de observación está dentro de
+`@if (store.requiereObservacion())` (research.md R8).
+
+**Por qué cambia**: (a) trazabilidad de la conciliación: la persona que cuenta y confirma
+puede ser distinta de la que abrió el turno; (b) con la observación condicionada a una
+estimación local, un cambio del esperado con el modal abierto dejaba al cajero sin dónde
+escribir la observación que el servidor luego exigía.
+
+**Quién y cuándo**: el solicitante de la spec, sesión de clarificación del 2026-10-15
+(decisiones D-5 y D-6).
+
+**Funcionalidades afectadas**: `cash_shifts` (dos columnas nuevas y opcionales),
+`close_shift`, `ShiftResponse`, reporte de cierre, `CashArqueoModalComponent`.
+
+**Riesgo asumido**: los turnos cerrados antes de esta spec no tienen «Contado por»; la
+pantalla omite la línea sin marcador (no se infiere del usuario de apertura).
+
+**Tests afectados**: ninguno protegido; pruebas nuevas de `closed_by_*` y de la
+visibilidad de la observación.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/121-desglose-denominaciones-cierre/spec.md` (D-5, D-6, FR-025, FR-029),
+`research.md` (R6, R8, R12), `data-model.md` §3.
+
+**Estado (2026-10-15)**: REGISTRADA, implementada.
 
 ---
 
