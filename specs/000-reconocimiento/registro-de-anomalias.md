@@ -4560,6 +4560,58 @@ visibilidad de la observación.
 
 ---
 
+### A-135 — [DECISIÓN DE NEGOCIO — spec 124] El campo «Con cuánto paga» deja de precargarse automáticamente cuando el método de la línea es Efectivo
+
+**Qué cambia**: hoy, al elegir "Efectivo" como método de una línea de pago (único método, o
+línea agregada con "Agregar otro método"), `PaymentInputComponent.setMethod()` precarga de
+inmediato el campo "Con cuánto paga" con el monto exacto que esa línea debe cubrir (el total si
+es la única línea, o el saldo pendiente si ya hay otras líneas) — spec 112, FR-014. Desde esta
+spec, cuando el método de la línea es Efectivo, el campo nace vacío; el cajero debe llenarlo
+tocando uno de los botones de monto sugerido (nuevos, spec 124) o escribiéndolo a mano. Las
+líneas con un método distinto a efectivo conservan el precargado automático existente, sin
+ningún cambio.
+
+**Evidencia de código**: `PaymentInputComponent.setMethod()`
+(`pos-heladeria/src/app/modules/tables/components/payment-input.component.ts:151-157`):
+`amount: this.draft().length === 1 && line.amount === 0 ? this.total : line.amount` — hoy
+precarga incondicionalmente con `this.total` la primera línea, sin distinguir el método; las
+líneas agregadas con "Agregar otro método" ya llegan precargadas con el saldo pendiente vía
+`addLine()` (líneas 169-176), también sin distinguir el método.
+
+**Por qué cambia**: con el campo ya precargado con el monto exacto, la primera sugerencia de
+monto (la que coincidiría con el saldo pendiente) quedaría redundante y, más importante, se
+pierde la verificación real de cuánto entrega el cliente: el cajero podría pulsar "Cobrar" sin
+haber registrado ni confirmado el monto físico recibido, porque el campo ya "parecía" lleno con
+el valor correcto por simple coincidencia con el saldo a cubrir.
+
+**Quién y cuándo**: quien solicitó la funcionalidad, en la descripción original de la spec 124
+(2026-10-17), a partir de la observación de una captura de pantalla donde el campo ya aparecía
+con el total.
+
+**Funcionalidades afectadas**: `PaymentInputComponent` / `payment-draft.util.ts` (panel de cobro
+de mesa, pedido manual y domicilio, pago con un solo método y pago mixto). No afecta a
+`PaymentAttemptReviewPanelComponent` ("Pagos por confirmar"): su campo `amountReceived` ya nace
+vacío hoy — ahí solo se agregan botones de sugerencia (spec 124, FR-013), sin cambio de
+comportamiento de precargado.
+
+**Riesgo asumido**: ningún cobro en curso se ve afectado (el campo es transitorio, no
+persistido); el único efecto es que el cajero ve un paso adicional obligatorio (tocar una
+sugerencia o escribir) donde antes el campo ya aparecía lleno — mitigado por los propios botones
+de sugerencia de esta spec.
+
+**Tests afectados**: `payment-input.component.spec.ts` — los casos que hoy asumen precargado
+automático con método "Efectivo" (p. ej. los que verifican FR-014 para una sola línea en
+efectivo) se actualizan citando esta decisión. Ningún test `"CONGELA comportamiento actual:"`
+protege este precargado: no es un characterization test, es un test propio de la spec 112.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/124-sugerencias-montos-efectivo/spec.md` (FR-010, sección "Decisión de negocio que cambia
+comportamiento existente").
+
+**Estado (2026-10-17)**: REGISTRADA, pendiente de implementación.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
