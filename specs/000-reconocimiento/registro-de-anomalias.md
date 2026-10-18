@@ -4612,6 +4612,58 @@ comportamiento existente").
 
 ---
 
+### A-136 — [DECISIÓN DE NEGOCIO — spec 125] Se revierte el retiro de "Imprimir Factura" del modal de éxito en pagos de un solo comprobante, hecho por la spec 029
+
+**Qué cambia**: la spec [029](../029-correccion-cobro-cierre-mesa/spec.md) (Historia 4,
+FR-001/FR-002) retiró el botón "Imprimir Factura" del modal "Pago registrado"
+(`table-sessions.component.ts`) para el caso de un solo comprobante (no cuenta dividida), porque
+duplicaba el botón "Imprimir Factura" ya existente en el panel lateral
+(`pos-checkout-panel.component.ts`, `store.printOrderInvoice(order.id)`), dejando esa única
+acción como la vía de impresión post-cobro. La spec
+[125](../125-confirmacion-pago-unica/spec.md) reintroduce el botón "Imprimir Factura"
+directamente en el modal para el caso de un solo comprobante, de modo que la confirmación de pago
+quede autocontenida (monto, cliente, método, vuelto e impresión) sin que el cajero tenga que
+buscar la acción en el panel lateral. Reutiliza la misma acción de impresión que ya existe, no
+crea una ruta de impresión nueva; el botón de la barra lateral permanece sin cambios y sigue
+disponible para reimpresiones posteriores una vez cerrado el modal. El caso de cuenta dividida no
+cambia: conserva su botón propio "Imprimir todos", que spec 029 nunca retiró.
+
+**Por qué cambia**: quien describe la spec 125 pide explícitamente, en sus escenarios Gherkin,
+que el modal de confirmación tenga las acciones "Imprimir Factura" y "Cerrar" juntas, como parte
+del mismo objetivo de negocio que motiva eliminar los avisos duplicados del cobro: que el cajero
+resuelva todo el cobro — ver confirmación e imprimir si hace falta — desde un único punto de
+interacción, sin mirar un segundo lugar de la pantalla. Ese objetivo prevalece sobre la
+duplicación visual puntual que motivó a spec 029 a retirarlo.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-17, confirmado explícitamente durante
+`/speckit-plan` de la spec 125, al preguntársele cómo resolver el conflicto detectado entre los
+escenarios de la spec 125 y la decisión ya registrada de spec 029.
+
+**Funcionalidades afectadas**: el modal de éxito de `table-sessions.component.ts`, únicamente en
+su rama de un solo comprobante (`store.lastReceipts().length === 1`). No afecta la rama de cuenta
+dividida (ya tenía su propio botón "Imprimir todos", sin cambios) ni el botón "Imprimir Factura"
+del panel lateral (`pos-checkout-panel.component.ts`), que sigue existiendo igual — ahora
+duplicado intencionalmente con el del modal, no por descuido.
+
+**Riesgo asumido**: se reintroduce, para el caso de un solo comprobante, la misma duplicación
+visual que spec 029 buscaba evitar (dos botones de imprimir alcanzables en el mismo flujo de
+cobro). Se acepta porque ya no ocurren al mismo tiempo en pantalla: el modal se cierra de
+inmediato al imprimir o al cerrarlo, y la barra lateral queda para reimpresiones posteriores, no
+para el instante de la confirmación.
+
+**Tests afectados**: los tests de `table-sessions.component.spec.ts` (o equivalente) que
+verifican, a partir de spec 029, la ausencia de "Imprimir Factura" en el modal para un solo
+comprobante se actualizan como parte de la implementación de spec 125, citando esta entrada. No
+es un characterization test protegido por el Principio III: es un test propio de spec 029, no un
+comportamiento heredado desde antes de la modernización.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/125-confirmacion-pago-unica/spec.md` (Historia 4, FR-004).
+
+**Estado (2026-10-17)**: REGISTRADA, pendiente de implementación.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
