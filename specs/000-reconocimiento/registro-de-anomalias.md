@@ -4664,6 +4664,131 @@ comportamiento heredado desde antes de la modernización.
 
 ---
 
+### A-137 — [DECISIÓN DE NEGOCIO — spec 126] "Crear pedido nuevo" deja de estar disponible para una mesa con saldo pendiente, cerrando la brecha abierta por spec 087
+
+**Qué cambia**: la spec [087](../087-fix-caja-mesas-menu-ventas/spec.md) (Clarifications,
+FR-007) decidió a propósito que el botón "Crear pedido manual"/CTA "+ Crear pedido nuevo"
+(`table-sessions.component.ts`, barra superior; `pos-checkout-panel.component.ts`, rama "Pedido
+de mostrador"; ambos resueltos por `store.newOrderTableId()` en `pos-terminal.store.ts`) estuviera
+disponible **incluso si la mesa ya tiene un pedido abierto sin pagar**, para permitir un segundo
+pedido independiente en paralelo sobre la misma mesa, sin ninguna restricción de estado de cobro.
+La spec [126](../126-nuevo-pedido-mesa-pagada/spec.md) retira esa disponibilidad incondicional
+para mesas: `newOrderTableId()` (o el criterio equivalente que la reemplace) deja de ofrecer la
+mesa seleccionada como destino del CTA cuando esa mesa tiene algún pedido sin pagar o con saldo
+pendiente — el CTA solo queda habilitado para una mesa cuando todos sus pedidos existentes están
+pagados o anulados, sin ningún saldo pendiente (mismo criterio ya usado por "Cobrar saldo", spec
+123). No se retira el CTA en sí, ni su disponibilidad para "Para Llevar"/"Domicilio" (sin mesa,
+sin cambios), ni la posibilidad de tener varios pedidos pagados en la misma mesa durante una
+visita (eso se mantiene y se amplía, no se retira).
+
+**Por qué cambia**: quien describe la spec 126 pide explícitamente, como regla de negocio, que
+nunca existan dos cuentas abiertas sin pagar sobre la misma mesa ("'Nuevo pedido' solo está
+disponible si todos los pedidos de la mesa están pagados o anulados, y no hay saldos
+pendientes"). El comportamiento vigente desde spec 087 permite exactamente lo contrario: un
+cajero puede hoy crear un segundo pedido en paralelo sobre una mesa con un pedido todavía sin
+cobrar, lo que deja a esa mesa con dos cuentas abiertas simultáneas — el riesgo de control de caja
+que spec 126 busca eliminar. Mantener dos botones de "crear pedido nuevo" con reglas distintas en
+la misma pantalla (uno sin restricción, otro restringido) se descartó por confuso para el cajero;
+se unifica un único criterio para mesas.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-17, confirmado explícitamente durante
+`/speckit-clarify` de la spec 126, al preguntársele cómo debían convivir la regla nueva (bloqueo
+por saldo pendiente) con el comportamiento ya vigente e intencional de spec 087.
+
+**Funcionalidades afectadas**: `store.newOrderTableId()` y todo lo que depende de él —el CTA "+
+Crear pedido nuevo" de la sub-barra (`table-sessions.component.ts`) y la rama "Pedido de
+mostrador" de `pos-checkout-panel.component.ts`— únicamente en su rama de mesas
+(`store.orderTypeTab() === 'mesas'`); no afecta el flujo sin mesa (Para Llevar/Domicilio), que
+sigue sin ninguna restricción de saldo. Tampoco afecta `manual-order-page.component.ts` en sí
+(el formulario de armado de pedido), solo la condición que decide si puede navegarse a él con esa
+mesa preseleccionada.
+
+**Riesgo asumido**: un cajero que hoy usa el pedido en paralelo como forma de dividir una cuenta
+por adelantado (antes de que el primer pedido se cobre) pierde esa vía específica desde este CTA;
+el camino que spec 126 sí deja abierto es cobrar/anular el pedido existente primero. Se acepta
+porque spec 123 (Historia 5) ya bloquea "Liberar Mesa" en la misma situación de saldo pendiente —
+unificar también "Crear pedido nuevo" bajo el mismo criterio es consistente con una regla de
+negocio ya vigente en otro punto de la misma pantalla, no una restricción nueva sin precedente.
+
+**Tests afectados**: los tests de `table-sessions.component.spec.ts` y
+`pos-checkout-panel.component.spec.ts` que verifican, a partir de spec 087 (FR-007), que el CTA
+permanece habilitado para una mesa con un pedido abierto sin pagar se actualizan como parte de la
+implementación de spec 126, citando esta entrada, para exigir en su lugar que la mesa no tenga
+ningún saldo pendiente. No son characterization tests protegidos por el Principio III: son tests
+propios de la funcionalidad introducida por spec 087, no comportamiento heredado desde antes de
+la modernización.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/126-nuevo-pedido-mesa-pagada/spec.md` (Historia 2, FR-001/FR-002).
+
+**Estado (2026-10-17)**: REVERTIDA el mismo día por
+[A-138](#a-138--decisión-de-negocio--spec-126-se-revierte-a-137-crear-pedido-nuevo-vuelve-a-estar-disponible-con-saldo-pendiente),
+antes de iniciar su implementación (no llegó a tener tareas completadas de `tasks.md`). Esta
+entrada se conserva íntegra como registro histórico de la decisión original y su razonamiento —
+no se edita ni se borra (Principio II: ninguna decisión registrada se reescribe, solo se
+supera con una nueva entrada trazable).
+
+---
+
+### A-138 — [DECISIÓN DE NEGOCIO — spec 126] Se revierte A-137: "Crear pedido nuevo" vuelve a estar disponible con saldo pendiente
+
+**Qué cambia**: revierte íntegramente [A-137](#a-137--decisión-de-negocio--spec-126-crear-pedido-nuevo-deja-de-estar-disponible-para-una-mesa-con-saldo-pendiente-cerrando-la-brecha-abierta-por-spec-087)
+(de este mismo día, misma spec). "+ Crear pedido nuevo" (`newOrderTableId()`,
+`table-sessions.component.ts`/`pos-checkout-panel.component.ts`) **vuelve a estar disponible**
+para una mesa sin importar si tiene pedidos sin pagar o con saldo pendiente — es decir, vuelve
+exactamente al comportamiento original e intencional de la spec
+[087](../087-fix-caja-mesas-menu-ventas/spec.md) (FR-007), sin ninguna condición de saldo. La
+mesa puede acumular varios pedidos/cuentas sin resolver en paralelo, cada uno independiente, sin
+fusionarse automáticamente. La única salvaguarda de integridad financiera que se mantiene es la
+ya existente desde antes de A-137: "Liberar Mesa" sigue bloqueada mientras exista algún pedido
+sin cobrar o con saldo pendiente (`has_billable_orders`/`has_pending_balance`,
+`release_paid_session`, spec 123 Historia 5) — esa regla no se toca ni se revierte.
+
+**Por qué cambia**: tras registrar A-137, el mismo dueño/desarrollador del proyecto trajo un
+conjunto más amplio de reglas de negocio propuestas para todo el dominio mesa/pedido/cuenta/pago
+(revisión de `/speckit-clarify` del 2026-10-17, segunda sesión el mismo día), cuya Regla 1
+("la existencia de un pedido anterior no debe bloquear automáticamente la creación de otro
+pedido... aunque existan pedidos anteriores... pendientes de pago") y Regla 3 ("permitir crear
+un nuevo pedido en una mesa ocupada aunque existan pedidos anteriores pendientes de pago...
+manteniendo los saldos... de forma independiente... sin fusionar") contradicen directamente a
+A-137. Preguntado explícitamente cuál de las dos reglas debía prevalecer, el dueño del proyecto
+eligió revertir A-137: el modelo de negocio correcto es permitir múltiples cuentas sin resolver
+en paralelo sobre la misma mesa, protegiendo la integridad financiera únicamente en el momento de
+liberar la mesa (ya cubierto por spec 123), no en el momento de crear un pedido nuevo.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-17, confirmado explícitamente durante una segunda
+sesión de `/speckit-clarify` de la spec 126 en el mismo día en que se registró A-137, al
+preguntársele cuál de las dos reglas en conflicto debía regir (opción "B: Revertir A-137").
+
+**Funcionalidades afectadas**: las mismas que listaba A-137 —
+`store.newOrderTableId()`/`newOrderBlockedReason()` (de existir, no llegó a implementarse) y
+ambos consumidores del CTA— vuelven a su estado previo a A-137, es decir, sin cambios respecto a
+spec 087. No afecta `release_paid_session`/`has_billable_orders`/`has_pending_balance` (spec
+123, Historia 5), que nunca se tocaron.
+
+**Riesgo asumido**: el mismo que ya había aceptado spec 087 originalmente — un cajero puede
+acumular varios pedidos/cuentas sin pagar en la misma mesa a la vez. Se acepta explícitamente
+porque la Regla 3 exige que esos saldos se mantengan **independientes y trazables por separado**
+(no fusionados), y porque "Liberar Mesa" sigue siendo el punto de control que impide cerrar la
+mesa con cualquiera de ellos sin resolver.
+
+**Tests afectados**: ninguno — A-137 no llegó a implementarse (ver Estado de esa entrada), así
+que no hay ningún test de spec 087 que haya sido modificado y deba revertirse.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/126-nuevo-pedido-mesa-pagada/spec.md` (Historia 2 reescrita; FR-001/FR-002 reemplazados).
+
+**Estado (2026-10-17)**: REGISTRADA y verificada. `spec.md`/`plan.md`/`tasks.md` de spec 126 se
+actualizaron para reflejarla el mismo día. La verificación de regresión (`/speckit-implement`)
+agregó un test nuevo en
+`pos-heladeria/src/app/modules/tables/pages/table-sessions.component.spec.ts` ("con una mesa
+seleccionada que tiene un pedido sin pagar o con saldo pendiente, el CTA sigue habilitado") que
+confirmó fallar cuando se reintrodujo temporalmente la condición de A-137 en
+`newOrderTableId()`, y pasar limpio una vez revertida esa reintroducción — evidencia de que la
+cobertura de regresión protege efectivamente esta decisión.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
