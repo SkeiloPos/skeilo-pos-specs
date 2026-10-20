@@ -4789,6 +4789,67 @@ cobertura de regresión protege efectivamente esta decisión.
 
 ---
 
+### A-139 — [DECISIÓN DE NEGOCIO — spec 130] `POST /cart/leave` deja de ser infalible: bloquea la salida con pago pendiente
+
+**Qué cambia**: `leave_session` (`pos-backend/app/api/v1/cart/service.py`) y el endpoint que lo
+expone, `POST /cart/leave` (`pos-backend/app/api/v1/cart/router.py`), dejan de garantizar "nunca
+falla". Hasta ahora cualquier comensal podía cerrar su sesión del Menú QR en cualquier momento,
+sin importar el estado de pago de sus propios pedidos. Con esta spec, si el comensal que invoca
+`leave` tiene al menos un `CustomerOrder` propio, no cancelado, cuyo pago no está completamente
+confirmado (efectivo sin cobrar en caja, transferencia con comprobante aún en verificación, o
+pago mixto con alguna de las dos confirmaciones pendiente), la llamada responde `409` con
+`{"error": "pago_pendiente", "message": "Tienes un pago pendiente. Para salir, dirígete a la
+caja. Si no deseas llevar tu pedido, indícalo allí."}` y la sesión del participante permanece
+activa (no se cierra, no se invalida el acceso). El botón "Salir" del Menú QR
+(`public-menu.component.ts::confirmExit()`/`exit()`) deja de tratar la llamada como best-effort
+silencioso: revisa primero los pedidos propios ya cargados y, si no detecta nada ahí, llama al
+backend y muestra un diálogo de bloqueo ante el nuevo `409`. El criterio se evalúa únicamente
+sobre los pedidos propios de quien invoca `leave` — un pedido pendiente de **otro** comensal de
+la misma mesa no bloquea su salida (Clarificación Q2). La liberación de mesa de `RN-CART-15` no
+se toca.
+
+**Por qué cambia**: pedido explícito del negocio al describir la Historia 3 de
+`specs/130-rediseno-menu-qr/spec.md` — hoy un comensal puede salir del Menú QR (y perder acceso a
+"Mis pedidos") con un pago en efectivo todavía sin cobrar o un comprobante de transferencia sin
+verificar, lo que complica el seguimiento en caja de ese pedido. El negocio decidió, en las
+Clarificaciones Q1/Q2 de la sesión 2026-10-20 de `spec.md`, que el bloqueo debe cubrir **cualquier**
+pago no confirmado (incluida la porción por transferencia de un pago mixto, no solo
+efectivo/mixto como hacía el diseño de referencia) y que debe aplicar solo al comensal con el
+pedido pendiente propio, no a toda la mesa.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-20, confirmado explícitamente en las Clarificaciones
+Q1 y Q2 de la sesión `/speckit-clarify` de `specs/130-rediseno-menu-qr/spec.md`.
+
+**Funcionalidades afectadas**: `leave_session` y `POST /cart/leave`
+(`pos-backend/app/api/v1/cart/service.py`, `pos-backend/app/api/v1/cart/router.py`); el botón
+"Salir" del Menú QR y su diálogo de confirmación
+(`pos-heladeria/src/app/modules/tables/pages/public-menu.component.ts::confirmExit()`/`exit()`);
+cualquier otro llamador de `leave_session`/`POST /cart/leave` que hoy asuma que nunca falla debe
+revisarse contra este nuevo `409` (inventario en `specs/130-rediseno-menu-qr/research.md`
+Decisión 7).
+
+**Riesgo asumido**: un comensal con un pago pendiente ya no puede cerrar su sesión del Menú QR
+por su cuenta — debe acudir a caja. Se acepta porque es exactamente el comportamiento pedido por
+el negocio (Historia 3) para no perder trazabilidad de pagos pendientes al cerrar sesión.
+
+**Tests afectados**: characterization tests nuevos en
+`pos-backend/app/characterization_tests/test_cart_service.py`,
+`pos-backend/app/characterization_tests/test_cart_router.py` y el spec de
+`public-menu.component.ts` que fijan el `409` nuevo y la persistencia de la sesión tras el
+bloqueo; no hay tests previos de `leave_session`/`POST /cart/leave` que describan la garantía
+"nunca falla" como comportamiento protegido — esta spec es la primera en imponer una condición de
+fallo sobre ese endpoint.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/130-rediseno-menu-qr/spec.md` (Historia 3, FR-009 a FR-012),
+`specs/130-rediseno-menu-qr/research.md` (Decisión 7),
+`specs/130-rediseno-menu-qr/contracts/bloqueo-salida.md`.
+
+**Estado (2026-10-20)**: REGISTRADA, pendiente de implementación (`/speckit-implement` de spec
+130).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
