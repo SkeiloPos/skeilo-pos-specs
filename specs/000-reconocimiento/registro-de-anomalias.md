@@ -4850,6 +4850,201 @@ fallo sobre ese endpoint.
 
 ---
 
+### A-140 — [DECISIÓN DE NEGOCIO — spec 131] Se retira "Agregar adición" por línea y el badge "Modificada" (spec 123) del detalle de pedido
+
+**Qué cambia**: `pos-order-panel.component.ts` deja de mostrar, por cada línea de un pedido ya
+facturado, el selector dedicado "Agregar adición" y el badge "Modificada" que introdujo la spec
+123. Agregar una opción/adición extra a un producto ya facturado deja de hacerse mediante ese
+selector específico y pasa a cubrirse exclusivamente agregando la adición como un
+producto/línea **nueva** del pedido, a través del flujo normal de "Agregar producto" del catálogo
+embebido (`pos-catalog-drawer.component.ts`) — el mismo camino que ya existe hoy para cualquier
+producto nuevo. El backend (`addOrderItems`, endpoints de adiciones de spec 123) no se toca: solo
+desaparece el atajo de UI dedicado; el resultado final (una línea nueva en el pedido) es
+alcanzable por la vía general que ya existía en paralelo.
+
+**Por qué cambia**: el diseño de referencia (`design/SkeiloPOS.html`, bloque `tDetOn`) no incluye
+ningún control por línea equivalente a "Agregar adición"/badge "Modificada" — solo la lista de
+líneas con sus acciones estándar ("Marcar listo"/"Anular") y el flujo único de "Agregar
+producto". El usuario de negocio, al revisar el mockup frente al comportamiento actual, decidió
+simplificar a un solo camino de UI para agregar cualquier producto/adición nueva, en vez de
+mantener dos caminos distintos para el mismo resultado.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-22, decidido durante la redacción de
+`specs/131-rediseno-terminal-mesas/spec.md` (sección Clarifications, Q1/Q2 de esa sesión) —
+registrado explícitamente ahí como FR-023 y en "Assumptions".
+
+**Funcionalidades afectadas**: `pos-order-panel.component.ts` (selector "Agregar adición" y badge
+"Modificada" introducidos por
+`specs/123-adiciones-pago-complementario/`); su spec/tests existentes que documentan ese selector
+como comportamiento vigente (`pos-order-panel.component.spec.ts`). No afecta el endpoint ni el
+modelo de datos de adiciones de spec 123 — solo el punto de entrada de UI dedicado.
+
+**Riesgo asumido**: un cajero que hoy usa "Agregar adición" para distinguir visualmente una
+adición de un producto nuevo pierde esa distinción explícita en la UI; el dato en el pedido
+(línea nueva) es el mismo, solo cambia el camino para crearla. Se acepta porque es exactamente lo
+que pidió el negocio al revisar el diseño de referencia — un solo flujo de "agregar algo al
+pedido" en vez de dos.
+
+**Tests afectados**: los characterization tests de `pos-order-panel.component.spec.ts` que
+verifican la presencia del selector "Agregar adición"/badge "Modificada" se reescriben
+explícitamente como parte de la implementación de spec 131, citando esta entrada, para confirmar
+en su lugar que esa adición solo es alcanzable vía "Agregar producto" — no se eliminan sin más,
+se ajustan al comportamiento nuevo (Principio III).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/131-rediseno-terminal-mesas/spec.md` (FR-023, Assumptions).
+
+**Estado (2026-10-22)**: REGISTRADA, pendiente de implementación (`/speckit-implement` de spec
+131, Fase 4/US2).
+
+---
+
+### A-141 — [DECISIÓN DE NEGOCIO — spec 131] "+ Crear pedido nuevo" se oculta dentro del detalle de una mesa y se reubica como "Nueva cuenta"
+
+**Qué cambia**: mientras el cajero está dentro de la vista de detalle de una **mesa** (donde
+aplican las pestañas "Pedido N" que reutilizan 1:1 el bloque `accOn` del diseño de referencia), el
+botón "+ Crear pedido nuevo" de la sub-barra superior de `table-sessions.component.ts` deja de
+mostrarse — esa misma capacidad (crear un pedido nuevo en paralelo sobre la mesa, spec 087) queda
+disponible exclusivamente a través del botón punteado "Nueva cuenta" dentro del bloque de
+pestañas del detalle, que dispara exactamente la misma acción que hoy dispara "+ Crear pedido
+nuevo" desde ahí. En la vista de detalle de un pedido de Domicilio o Para llevar (que no agrupan
+varios pedidos bajo una mesa, por lo que no tienen pestañas "Pedido N") el botón de la sub-barra
+se sigue mostrando igual que hoy. Fuera de la vista de detalle (en la grilla principal) el botón
+tampoco cambia — sigue siendo el único punto de entrada ahí.
+
+**Por qué cambia**: el diseño de referencia (`design/SkeiloPOS.html`, bloque `accOn` dentro de
+`tDetOn`) ya resuelve "crear un pedido nuevo en paralelo sobre esta mesa" con el botón "Nueva
+cuenta" dentro del propio bloque de pestañas, no con un botón aparte en la sub-barra superior.
+Mantener los dos puntos de entrada (sub-barra + "Nueva cuenta") para la misma acción, mientras se
+está dentro del detalle de una mesa, duplicaría la funcionalidad sin ningún beneficio y se
+alejaría de la fidelidad visual que pide FR-022 para ese bloque.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-22, decidido durante la redacción de
+`specs/131-rediseno-terminal-mesas/spec.md` (sección Clarifications de esa sesión) — registrado
+explícitamente ahí como FR-022b y en "Assumptions".
+
+**Funcionalidades afectadas**: el botón "+ Crear pedido nuevo" de la sub-barra de
+`table-sessions.component.ts` (introducido/ajustado por
+`specs/087-nuevo-pedido-mesa-ocupada/`, revertido a siempre habilitado por A-138/spec 126); su
+visibilidad condicional nueva depende de si la vista de detalle activa es la de una mesa (con
+pestañas "Pedido N") o la de un pedido sin mesa (Domicilio/Para llevar). No cambia la lógica de
+habilitación/deshabilitación por mesa libre que ya existe (FR-005) — solo si el botón se muestra o
+no dentro del detalle de mesa.
+
+**Riesgo asumido**: un cajero que hoy usa el botón de la sub-barra para crear un segundo pedido
+mientras ya está dentro del detalle de una mesa debe aprender a usar "Nueva cuenta" en su lugar.
+Se acepta porque el destino de la acción (crear un pedido nuevo en paralelo) y su resultado no
+cambian — solo el punto de entrada dentro de esa misma pantalla, por fidelidad al diseño de
+referencia.
+
+**Tests afectados**: los tests de `table-sessions.component.spec.ts` y
+`pos-order-panel.component.spec.ts` que verifican, desde spec 087/126, que el CTA "+ Crear pedido
+nuevo" de la sub-barra permanece visible/habilitado dentro del detalle de una mesa se actualizan
+como parte de la implementación de spec 131, citando esta entrada, para exigir en su lugar que
+esa capacidad viva en "Nueva cuenta" cuando se está dentro del detalle de una mesa, conservando la
+aserción sin cambios para Domicilio/Para llevar y para la grilla principal.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/131-rediseno-terminal-mesas/spec.md` (FR-022, FR-022b, Assumptions).
+
+**Estado (2026-10-22)**: REGISTRADA, pendiente de implementación (`/speckit-implement` de spec
+131, Fase 4/US2).
+
+---
+
+### A-142 — [DECISIÓN DE NEGOCIO — spec 131] La grilla de mesas vuelve a verse junto al detalle de pedido en escritorio ancho, revirtiendo un hotfix anterior
+
+**Qué cambia**: en `table-sessions.component.ts`, por debajo del breakpoint `lg` la tarjeta de
+mesas sigue ocultándose por completo al seleccionar una mesa/pedido (una sola columna a pantalla
+completa, con el botón "Volver a mesas" de la sub-barra) — sin cambios ahí. Pero desde `lg` en
+adelante, la tarjeta de mesas (`[data-testid="mesas-column"]`) vuelve a mostrarse lado a lado con
+la de detalle (`[data-testid="detail-column"]`), cada una ocupando la mitad del ancho disponible
+(`flex-1`/`flex-1`). Esto revierte un hotfix posterior a la spec 078 que, "a pedido del usuario",
+pasó a ocultar la tarjeta de mesas en **cualquier** ancho (no solo por debajo de `lg`) en cuanto
+había algo que mostrar en el detalle — esa decisión queda superada por esta, no borrada (Principio
+II: ninguna decisión registrada se reescribe).
+
+**Por qué cambia**: `research.md` de `specs/131-rediseno-terminal-mesas/` (punto 6) adopta
+explícitamente la distribución de columnas del diseño de referencia — "grilla de mesas a la
+izquierda / detalle + cobro a la derecha en escritorio ancho, una sola columna a pantalla completa
+con botón de volver en móvil" — citando FR-018 como respaldo. Al implementar la Fase 5 de ese
+spec, se detectó que el comportamiento actual (ocultar la grilla en cualquier ancho) contradice
+esa decisión ya adoptada; se confirmó explícitamente con el usuario de negocio cuál de las dos
+debía prevalecer, y se eligió seguir la distribución del diseño de referencia.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-22, confirmado explícitamente durante la
+implementación de la Fase 5 (`/speckit-implement`) de `specs/131-rediseno-terminal-mesas/`, vía
+`AskUserQuestion` ("Layout desktop" → "Lado a lado en escritorio (según spec/mockup)").
+
+**Funcionalidades afectadas**: `table-sessions.component.ts` (las clases de visibilidad
+`hidden`/`flex`/`lg:flex` de `mesas-column` y `detail-column`); ningún store ni endpoint se toca
+— es un cambio puramente de layout sobre el mismo estado (`store.hasActiveSelection()`,
+`store.effectiveCentralView()`) que ya gobierna ambas tarjetas.
+
+**Riesgo asumido**: en escritorio ancho, seleccionar una mesa ya no oculta la grilla por completo
+— un cajero que se apoyaba en esa pantalla completa del detalle para no distraerse con la grilla
+de fondo vuelve a verla al lado. Se acepta porque es exactamente el comportamiento que pide el
+diseño de referencia de este spec, y permite cambiar de mesa sin volver primero a la grilla
+(mismo patrón que cualquier maestro-detalle de dos columnas).
+
+**Tests afectados**: `table-sessions.component.spec.ts`, describe "colapso móvil de la grilla de
+mesas y el panel de detalle" — el test que afirmaba la ocultación "EN CUALQUIER ANCHO" (citando el
+hotfix anterior) se reescribe para exigir en su lugar `hidden lg:flex` en `mesas-column` (oculta
+por debajo de `lg`, visible desde `lg`), citando esta entrada.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/131-rediseno-terminal-mesas/research.md` (punto 6), `specs/131-rediseno-terminal-mesas/spec.md`
+(FR-018).
+
+**Estado (2026-10-22)**: REVERTIDA el mismo día por
+[A-143](#a-143--decisión-de-negocio--spec-131-se-revierte-a-142-la-grilla-de-mesas-vuelve-a-ocultarse-en-cualquier-ancho-al-ver-el-detalle),
+al verificar el resultado real contra una captura del diseño de referencia (ver esa entrada).
+Esta entrada se conserva íntegra como registro histórico de la decisión original y su
+razonamiento — no se edita ni se borra (Principio II).
+
+---
+
+### A-143 — [DECISIÓN DE NEGOCIO — spec 131] Se revierte A-142: la grilla de mesas vuelve a ocultarse en cualquier ancho al ver el detalle
+
+**Qué cambia**: revierte íntegramente A-142. En `table-sessions.component.ts`, la tarjeta de
+mesas (`[data-testid="mesas-column"]`) vuelve a ocultarse **en cualquier ancho** en cuanto hay
+algo que mostrar en el detalle — ya no reaparece desde `lg` lado a lado con
+`[data-testid="detail-column"]`. La clase `lg:flex` que A-142 le había agregado se retira; la
+clase vuelve a ser simplemente `hidden`/`flex` sin ningún prefijo `lg:`, igual que antes de esa
+entrada.
+
+**Por qué cambia**: al implementar A-142, el resultado real en pantalla (verificado contra una
+captura del usuario) mostraba **3 columnas simultáneas** en escritorio ancho — mesas, pedido y
+cobro — porque la tarjeta de detalle ya estaba dividida internamente en pedido (60%) + cobro
+(40%) desde antes de este spec (spec 078). El usuario esperaba **2 columnas** (pedido + cobro,
+como en la captura de referencia que compartió), no 3; "lado a lado" en `research.md` punto 6 se
+refería a la relación grilla↔detalle como conjunto, no a sumar la grilla como una tercera columna
+junto a las dos que el detalle ya tiene. Se confirmó el malentendido comparando directamente la
+captura de la aplicación contra la del diseño de referencia.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-22, mismo día que A-142, tras ver el resultado
+real en la aplicación ("el pedido de la mesa debería verse en 2 columnas y no en 3").
+
+**Funcionalidades afectadas**: las mismas de A-142 — `table-sessions.component.ts`, clases de
+visibilidad de `mesas-column`/`detail-column`. Ningún store ni endpoint.
+
+**Riesgo asumido**: ninguno nuevo — vuelve exactamente al comportamiento que ya existía antes de
+A-142 (que a su vez era, él mismo, la reversión de un hotfix previo "a pedido del usuario"). No
+hay pérdida de capacidad: cambiar de mesa sigue siendo un clic en "Volver a mesas".
+
+**Tests afectados**: `table-sessions.component.spec.ts`, el mismo test que A-142 había
+reescrito para exigir `lg:flex` se reescribe una vez más para volver a exigir la ausencia de
+cualquier clase con prefijo `lg:` en `mesas-column`/`detail-column`, citando esta entrada.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**: revierte el tratamiento de
+A-142 sobre los mismos archivos (`specs/131-rediseno-terminal-mesas/research.md` punto 6,
+`specs/131-rediseno-terminal-mesas/spec.md` FR-018 — la lectura correcta de ambos era "grilla O
+detalle", nunca los tres paneles a la vez).
+
+**Estado (2026-10-22)**: IMPLEMENTADA (`/speckit-implement` de spec 131, Fase 5/US4).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
