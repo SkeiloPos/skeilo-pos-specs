@@ -5045,6 +5045,67 @@ detalle", nunca los tres paneles a la vez).
 
 ---
 
+### A-144 — [DECISIÓN DE NEGOCIO — spec 132] `approve_payment_attempt` deja de exigir `receipt_file_url`; el comensal pierde la opción de subir comprobante desde el QR
+
+**Qué cambia**: `approve_payment_attempt` (`pos-backend/app/api/v1/orders/checkout.py`) deja de
+rechazar con `409` ("El intento no tiene comprobante todavía") un intento de transferencia o la
+porción por transferencia de un pago mixto que no tiene `receipt_file_url`. El comprobante pasa
+de ser una condición bloqueante de aprobación a una evidencia opcional que *solo* el cajero puede
+adjuntar en el momento de confirmar (nuevo campo opcional en `PaymentAttemptApproveIn`), nunca el
+comensal desde el flujo QR. En simetría, `submit_cart` y `create_payment_attempt`
+(`pos-backend/app/api/v1/cart/service.py`) dejan de exigir `receipt_file_url` para crear un
+intento de transferencia (100%) o mixto desde el QR — el campo sigue existiendo en el modelo
+(`OrderPaymentAttempt.receipt_file_url`, sin migración de esquema) y, si de todos modos llega
+relleno en el body (compatibilidad con integraciones existentes), se sigue validando y
+persistiendo igual que antes; su ausencia nunca bloquea el envío. El flujo de
+presign/subida/adjuntar (`presign_payment_receipt`, `presign_receipt`, `attach_receipt`) no se
+elimina del backend (sigue existiendo por si algún llamador lo usa), pero el frontend del
+Menú QR deja de ofrecerlo en los pasos de transferencia/mixto (FR-023).
+
+**Por qué cambia**: autorizado explícitamente por `specs/132-pago-transferencia-mixto-caja/spec.md`
+(Input + FR-001, FR-002, FR-012, FR-023) — el negocio determinó que "una imagen subida no se
+puede validar" automáticamente, así que la verificación real debe quedar a cargo del cajero en
+persona, en la mesa, en el momento de la entrega (contrastando la app del banco del comensal
+contra el monto esperado), no de un archivo que el comensal sube sin que nadie pueda confirmarlo
+en el momento de la decisión "¿confirmo o rechazo?". Ver
+`specs/132-pago-transferencia-mixto-caja/research.md`, Decisión 1.
+
+**Quién y cuándo**: Deimer Hernandez, 2026-10-23, al redactar
+`specs/132-pago-transferencia-mixto-caja/spec.md`/`plan.md`/`research.md` (Decisión 1), antes de
+tocar `approve_payment_attempt` (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: `approve_payment_attempt`, `submit_cart`, `create_payment_attempt`
+(`pos-backend/app/api/v1/orders/checkout.py`, `pos-backend/app/api/v1/cart/service.py`); el paso
+de subida de comprobante del Menú QR en transferencia total y pago mixto
+(`pos-heladeria/src/app/modules/tables/pages/checkout/transfer-details-step.component.ts`,
+`cash-amount-step.component.ts`) y sus llamadas a `diner.service.ts`; el panel de revisión de
+pagos en caja (`payment-attempt-review-panel.component.ts`), que gana el input opcional de foto
+que antes no existía porque el comprobante llegaba siempre del comensal. Introducido por spec
+024 (base de `OrderPaymentAttempt`/`approve_payment_attempt`) y spec 130 (pago mixto); esta
+entrada es la primera que relaja esa obligatoriedad.
+
+**Riesgo asumido**: el sistema ya no tiene ningún control automático —ni siquiera la presencia de
+un archivo— antes de que una transferencia se dé por aprobada; toda la verificación recae en el
+criterio humano del cajero en el momento de la entrega. Se acepta porque es exactamente el
+comportamiento pedido por el negocio (Input de spec 132): el control automático actual (solo
+exigir que exista un archivo) no verificaba nada real y daba una falsa sensación de control.
+
+**Tests afectados**: `pos-backend/app/characterization_tests/test_cart_payment_attempts.py` —
+`test_submit_cart_transferencia_sin_receipt_file_url_falla_422` y
+`test_submit_cart_mixto_sin_comprobante_falla_422` se reescriben para afirmar éxito (ya no 422)
+sin comprobante, citando esta entrada (Principio III); characterization tests nuevos en
+`test_approve_payment_attempt_no_receipt.py` fijan que `approve` ya no exige
+`receipt_file_url` y que una foto opcional del cajero se persiste sin bloquear nada.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/132-pago-transferencia-mixto-caja/spec.md` (FR-001, FR-002, FR-012, FR-023),
+`specs/132-pago-transferencia-mixto-caja/research.md` (Decisión 1),
+`specs/132-pago-transferencia-mixto-caja/data-model.md` (§ `OrderPaymentAttempt.receipt_file_url`).
+
+**Estado (2026-10-23)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 132).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
