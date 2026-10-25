@@ -5106,6 +5106,75 @@ sin comprobante, citando esta entrada (Principio III); characterization tests nu
 
 ---
 
+### A-145 — [DECISIÓN DE NEGOCIO — spec 134] Con la página alterada por el navegador se bloquean el envío del pedido, el pago y sus equivalentes del POS; la app puede recargarse sola al detectar versión nueva; el comensal que no lee español ya no puede traducir el menú
+
+**Qué cambia**: tres comportamientos del frontend (`pos-heladeria`), ninguno del backend:
+
+1. **Bloqueo de acciones con la página alterada.** Cuando la aplicación detecta que el navegador o
+   una extensión alteró el contenido de la página (traducción automática), rechaza **antes de
+   enviarlas** las acciones que crean un pedido, cobran, confirman o aprueban un pago o registran un
+   movimiento de dinero de caja, hasta que la persona recargue. Hoy esas acciones se ejecutan sin
+   ningún control aunque la pantalla muestre cantidades o totales desfasados. Conjunto exacto
+   (14 rutas): `specs/134-bloqueo-traduccion-automatica/contracts/protected-actions.md`. Las
+   anulaciones, adiciones, rechazos de pago y el flujo de cocina quedan **fuera** (criterio literal
+   de la spec).
+2. **Recarga automática por versión nueva.** La aplicación comprueba si hay una versión nueva al
+   arrancar y al volver a primer plano, y la aplica recargando por su cuenta, **solo en un momento
+   seguro** (sin escrituras en vuelo, sin modales ni formularios editados, sin borrador sin enviar
+   en la Terminal). Hoy esperaba a que la persona recargara. La recarga por *alteración* sigue
+   siendo siempre una acción de la persona (nunca automática).
+3. **Traducción automática bloqueada.** Se declara `lang="es"` con `translate="no"` y el meta
+   `google/notranslate`: un comensal que no lee español ve el menú solo en español. Hoy el
+   documento declaraba `lang="en"` y el navegador ofrecía traducirlo.
+
+**Por qué cambia**: autorizado por `specs/134-bloqueo-traduccion-automatica/spec.md` (Clarifications
+de la sesión 2026-10-24 y "Impacto y compatibilidad"). La traducción deja la pantalla desfasada del
+estado real **sin ningún error** (cantidades, totales, contadores y textos de botones): se midió un
+modal que mostraba *Cantidad 1 / Agregar $ 4.000* cuando lo real era 3 unidades y $ 12.000, y una
+tarjeta de ventas que mostraba $ 367.500 en las tres métricas. La persona actúa a ciegas y puede
+pedir o cobrar algo distinto de lo que ve. La decisión de producto es **bloquear** la traducción, no
+hacerla funcionar; el bloqueo depende de que el navegador lo respete (algunas extensiones lo
+ignoran), de ahí la red de seguridad (aviso + bloqueo de acciones) y la actualización de versión
+para que el arreglo llegue a terminales con pestañas abiertas durante días. Ver
+`specs/134-bloqueo-traduccion-automatica/research.md` (Decisiones 1, 3, 4 y 6).
+
+**Quién y cuándo**: Leonardo Gómez (dueño del producto), 2026-10-24, al aceptar las
+recomendaciones tras la reproducción (`specs/134-bloqueo-traduccion-automatica/spec.md`,
+Clarifications), antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: menú QR del comensal y todos los pasos de `/checkout`
+(`payment-method-step`, `transfer-details-step`, `public-menu`); panel del personal: panel de cobro
+de la Terminal, cuenta de sesión de mesa, armado de orden manual, **Pagos por confirmar**
+(`payment-attempt-review-panel`) y caja (apertura, movimientos, cierre); `/super-admin` y las
+pantallas públicas de acceso (solo el aviso y la declaración de idioma); `src/index.html`;
+`IconMiComponent`; el Service Worker (`push-sw.js`/`ngsw`) a través de `SwUpdate`. No toca
+facturación, inventario ni datos del servidor.
+
+**Riesgo asumido**: (a) las pestañas ya abiertas antes del primer despliegue ejecutan el código
+anterior y necesitan **una recarga manual única** para recibir el mecanismo de actualización;
+(b) un comensal que no lee español queda sin traducción (consecuencia aceptada, no un defecto);
+(c) el bloqueo de acciones con la página alterada puede dejar un pedido retenido
+(`hold_for_payment`) si la alteración se detecta justo entre las dos peticiones del armado de la
+Terminal — estado que el sistema ya soporta, sin cobro ni cocina; (d) la frontera del conjunto de
+acciones protegidas (qué se incluye) queda pendiente de confirmar con el dueño y se ajusta editando
+una fila del catálogo, sin tocar otros módulos.
+
+**Tests afectados**: ninguno con prefijo `"CONGELA comportamiento actual:"` en las pantallas que
+se tocan (los dos del frontend están en `checkout-order-summary` y `review-step`, que no cambian).
+Tests nuevos: `core/integrity/**` (señales, servicio, interceptor —una prueba por ruta del
+catálogo—, `ErrorHandler`, banner) y `core/update/**` (momento seguro, `SwUpdate` simulado).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/134-bloqueo-traduccion-automatica/spec.md` (FR-001 a FR-023),
+`specs/134-bloqueo-traduccion-automatica/research.md` (Decisiones 1–8),
+`specs/134-bloqueo-traduccion-automatica/contracts/protected-actions.md` (conjunto de acciones),
+`specs/134-bloqueo-traduccion-automatica/plan.md` (Incrementos de entrega).
+
+**Estado (2026-10-24)**: REGISTRADA, pendiente de implementación (`/speckit-tasks` y
+`/speckit-implement` de spec 134).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
