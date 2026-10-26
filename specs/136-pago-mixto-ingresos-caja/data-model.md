@@ -9,7 +9,7 @@
 Sin cambios de columnas. Se refuerza una invariante nueva de **aplicación** (no de base de datos,
 ver research.md D1):
 
-| Campo | Tipo | Cambio en spec 135 |
+| Campo | Tipo | Cambio en spec 136 |
 |---|---|---|
 | `sale_id` | FK → `sales.id` | Sin cambio. |
 | `payment_method_id` | FK → `payment_methods.id` | **Nueva invariante**: dentro del conjunto de `Payment` creados por un mismo `build_sale` (mismo `sale_id`), no puede repetirse entre dos filas. Antes (spec 112/A-124) sí podía repetirse. |
@@ -49,7 +49,7 @@ saldo pendiente, para que un método repetido no se confunda con un problema de 
 
 ### `CashMovement` (`pos-backend/app/models/cash_movement.py`, tabla `tenant.cash_movements`)
 
-| Campo | Tipo | Estado | Uso en spec 135 |
+| Campo | Tipo | Estado | Uso en spec 136 |
 |---|---|---|---|
 | `cash_shift_id` | FK → `cash_shifts.id` | Sin cambio | — |
 | `kind` | `String(20)`, `CheckConstraint IN ('ingreso','egreso','retiro')` | Sin cambio | Determina si `payment_method_id` puede ser distinto de efectivo (solo `'ingreso'`, FR-004/FR-012). |
@@ -84,7 +84,7 @@ Reutilizado tal cual (`is_cash: bool`, `active: bool`, `type: str`). `is_cash` s
 
 ### `ReconciliationResponse` (`pos-backend/app/api/v1/cash/schemas.py`, cambio de forma)
 
-| Campo | Estado | Cambio en spec 135 |
+| Campo | Estado | Cambio en spec 136 |
 |---|---|---|
 | `ingresos` | Sin cambio de nombre/tipo | **Cambia qué suma**: antes, todo `CashMovement` con `kind='ingreso'`; ahora, solo los que tengan `payment_method_id` de un método `is_cash=True` (FR-007). Sigue siendo el único término de ingresos que entra en `expected`. |
 | `egresos` / `retiros` | Sin cambio | Siempre `is_cash=True` por construcción (FR-012), la fórmula no cambia de resultado. |

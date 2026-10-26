@@ -5175,13 +5175,13 @@ catálogo—, `ErrorHandler`, banner) y `core/update/**` (momento seguro, `SwUpd
 
 ---
 
-### A-146 — [DECISIÓN DE NEGOCIO — spec 135] Se revierte A-124/FR-005 de spec 112: un pago mixto de pedido ya no admite repetir el mismo método en dos líneas
+### A-146 — [DECISIÓN DE NEGOCIO — spec 136] Se revierte A-124/FR-005 de spec 112: un pago mixto de pedido ya no admite repetir el mismo método en dos líneas
 
 **Qué cambia**: la spec [112](../112-fix-cobro-pago-mixto/spec.md) (FR-005, registrada en
 [A-124](#a-124--decisión-de-negocio--spec-112-se-revierte-la-eliminación-de-combinar-método-de-pago-que-hizo-la-spec-046))
 permitía **explícitamente** que un cobro de pedido con pago mixto repitiera el mismo método en
 más de una de sus hasta 3 líneas (ejemplo literal de spec 112: "dos transferencias distintas"). La
-spec [135](../135-pago-mixto-ingresos-caja/spec.md) revierte esa permisión por completo: en
+spec [136](../136-pago-mixto-ingresos-caja/spec.md) revierte esa permisión por completo: en
 cualquier cobro de pedido con 2 o más líneas de pago, ninguna línea puede repetir el método de otra
 línea del mismo cobro — el tope de 3 líneas (RN3 de spec 112) no cambia, solo deja de permitirse
 que dos de esas líneas compartan método. El punto de aplicación es el mismo que ya validaba el
@@ -5195,11 +5195,11 @@ equivalente en el borrador del frontend (`paymentIssue()`,
 líneas (p. ej. dos líneas de Nequi) no refleja una verdadera combinación de medios de pago y
 genera confusión en el arqueo y en los reportes por método — el caso real que spec 112 imaginó
 ("dos transferencias de personas distintas") no compensa la ambigüedad que introduce en el cierre
-de caja y en el desglose por método. La spec 135 (Clarifications, sesión 2026-10-25, pregunta 1)
+de caja y en el desglose por método. La spec 136 (Clarifications, sesión 2026-10-25, pregunta 1)
 confirma la reversión total, no una excepción parcial.
 
 **Quién y cuándo**: Deimer Hernandez, 2026-10-25, al redactar
-`specs/135-pago-mixto-ingresos-caja/spec.md` y confirmar explícitamente, durante
+`specs/136-pago-mixto-ingresos-caja/spec.md` y confirmar explícitamente, durante
 `/speckit-clarify`, que la reversión de FR-005/A-124 debía ser total (opción "A: Sí, revertir
 totalmente") y no limitarse a un subconjunto de métodos.
 
@@ -5207,12 +5207,12 @@ totalmente") y no limitarse a un subconjunto de métodos.
 `payment-draft.util.ts`, `PosCheckoutPanelComponent` en `pos-heladeria`), compartido entre Mesa,
 Para llevar y Domicilio — las mismas funcionalidades que listaba A-124. No afecta el tope de 3
 líneas (RN3), el cálculo de vuelto solo-efectivo (RN2), la suma exacta contra el total (RN1), ni
-la referencia opcional por línea (RN5), que spec 112 introdujo y spec 135 no toca. Tampoco afecta
+la referencia opcional por línea (RN5), que spec 112 introdujo y spec 136 no toca. Tampoco afecta
 `OrderPaymentAttempt` (pago mixto del autocheckout QR, spec 130), que por diseño usa columnas fijas
 (`cash_amount`/`transfer_amount`) y nunca pudo repetir método.
 
 **Riesgo asumido**: ningún pedido histórico se recalcula (Principio VII) — la validación solo
-aplica a cobros nuevos o a la confirmación de una edición nueva (spec 135, edge case de edición).
+aplica a cobros nuevos o a la confirmación de una edición nueva (spec 136, edge case de edición).
 Un pedido ya cobrado antes de esta spec con dos líneas del mismo método permanece consultable tal
 como quedó registrado.
 
@@ -5220,14 +5220,14 @@ como quedó registrado.
 método en 2 líneas" como válido (sus escenarios usan efectivo+transferencia o IDs aleatorios
 distintos vía `fx._uid()`), así que no hay characterization test con prefijo
 `"CONGELA comportamiento actual:"` que deba actualizarse para esta reversión — se agregan tests
-nuevos que verifiquen el rechazo (ver `specs/135-pago-mixto-ingresos-caja/quickstart.md`).
+nuevos que verifiquen el rechazo (ver `specs/136-pago-mixto-ingresos-caja/quickstart.md`).
 
 **Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
-`specs/135-pago-mixto-ingresos-caja/spec.md` (Clarifications, FR-001 a FR-003),
-`specs/135-pago-mixto-ingresos-caja/research.md` (Decisión 1).
+`specs/136-pago-mixto-ingresos-caja/spec.md` (Clarifications, FR-001 a FR-003),
+`specs/136-pago-mixto-ingresos-caja/research.md` (Decisión 1).
 
 **Estado (2026-10-25)**: REGISTRADA, pendiente de implementación (`/speckit-tasks` y
-`/speckit-implement` de spec 135).
+`/speckit-implement` de spec 136).
 
 ---
 

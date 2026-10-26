@@ -1,8 +1,8 @@
 # Implementation Plan: Métodos distintos en pago mixto e ingresos de caja por método de pago
 
-**Branch**: `135-pago-mixto-ingresos-caja` | **Date**: 2026-10-25 | **Spec**: [spec.md](./spec.md)
+**Branch**: `136-pago-mixto-ingresos-caja` | **Date**: 2026-10-25 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/135-pago-mixto-ingresos-caja/spec.md`
+**Input**: Feature specification from `/specs/136-pago-mixto-ingresos-caja/spec.md`
 
 ## Summary
 
@@ -77,13 +77,13 @@ mixto del autocheckout QR (`OrderPaymentAttempt`, spec 130/132), que usa columna
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Principio I (nace de un spec)**: ✅ `spec.md` aprobado en `specs/135-...` define problema,
+- **Principio I (nace de un spec)**: ✅ `spec.md` aprobado en `specs/136-...` define problema,
   alcance, reglas de negocio (vía Clarifications), criterios de aceptación e impacto. Este plan no
   añade alcance fuera de ese spec.
 - **Principio II (comportamiento existente protegido / decisión de negocio)**: ⚠️ requiere
   registro, ya completado en Fase 0 — US1 revierte explícitamente A-124/FR-005 de spec 112 (permitir
   repetir método en pago mixto de pedido). Registrado como
-  [`A-146`](../000-reconocimiento/registro-de-anomalias.md#a-146--decisión-de-negocio--spec-135-se-revierte-a-124fr-005-de-spec-112-un-pago-mixto-de-pedido-ya-no-admite-repetir-el-mismo-método-en-dos-líneas)
+  [`A-146`](../000-reconocimiento/registro-de-anomalias.md#a-146--decisión-de-negocio--spec-136-se-revierte-a-124fr-005-de-spec-112-un-pago-mixto-de-pedido-ya-no-admite-repetir-el-mismo-método-en-dos-líneas)
   en `registro-de-anomalias.md`. US2/US3 (ingresos por método) no revierte ningún comportamiento
   existente: amplía una capacidad (hoy el ingreso solo admite efectivo) sin cambiar el
   comportamiento de los ingresos en efectivo (FR-009, preservado sin cambios) ni el de
@@ -117,7 +117,7 @@ esta misma Fase 0, antes de que exista cualquier tarea de implementación.
 ### Documentation (this feature)
 
 ```text
-specs/135-pago-mixto-ingresos-caja/
+specs/136-pago-mixto-ingresos-caja/
 ├── plan.md              # This file (/speckit-plan command output)
 ├── research.md          # Phase 0 output (/speckit-plan command)
 ├── data-model.md        # Phase 1 output (/speckit-plan command)

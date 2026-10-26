@@ -1,6 +1,6 @@
 # Feature Specification: Métodos distintos en pago mixto e ingresos de caja por método de pago
 
-**Feature Branch**: `[135-pago-mixto-ingresos-caja]`
+**Feature Branch**: `[136-pago-mixto-ingresos-caja]`
 
 **Created**: 2026-10-25
 

@@ -1,9 +1,9 @@
 # Implementation Plan: Compra de Insumos con Conversión a Unidad Base
 
-**Branch**: `134-conversion-unidades-compra` | **Date**: 2026-10-24 | **Spec**:
+**Branch**: `135-conversion-unidades-compra` | **Date**: 2026-10-24 | **Spec**:
 [spec.md](./spec.md)
 
-**Input**: Feature specification from `specs/134-conversion-unidades-compra/spec.md`
+**Input**: Feature specification from `specs/135-conversion-unidades-compra/spec.md`
 
 ## Summary
 
@@ -70,7 +70,7 @@ facturación.
 
 | Principio | Evaluación |
 |---|---|
-| I. Nace de un spec | ✅ `specs/134-conversion-unidades-compra/spec.md` ya aprobado, con FRs/criterios de aceptación. |
+| I. Nace de un spec | ✅ `specs/135-conversion-unidades-compra/spec.md` ya aprobado, con FRs/criterios de aceptación. |
 | II. Comportamiento existente protegido | ✅ La ruta `supplier_item_id` (spec 106/107) queda congelada sin cambios observables (research.md D5). El único comportamiento "cambiado" es activar `convert()`, que hoy es código muerto sin usuarios reales (RN-CAT-41) — no hay comportamiento de producción que proteger ahí. Documentado explícitamente en research.md D2. |
 | III. Characterization tests | ⚠️ `test_core_units.py::ConvertWithRealUnitMeasureModelTests` queda obsoleto por diseño (el modelo real pasa a tener `dimension`/`factor_to_base`). Se actualiza explícitamente en el mismo cambio, citando esta spec (research.md D2) — no se "ajusta a escondidas". |
 | IV. Nuevo comportamiento permitido | ✅ Toda la funcionalidad nueva (conversión general, anulación de compras, historial de factor) está definida por esta spec. |
@@ -94,7 +94,7 @@ una excepción sin registrar.
 ### Documentation (this feature)
 
 ```text
-specs/134-conversion-unidades-compra/
+specs/135-conversion-unidades-compra/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md         # Phase 1 output
@@ -129,7 +129,7 @@ specs/134-conversion-unidades-compra/
 │   │       ├── schemas.py           # PurchaseItemIn/Response + campos nuevos; PurchaseResponse + voided_*
 │   │       └── router.py            # POST /purchases/{id}/void; PATCH /items/{id} valida FR-002
 │   └── characterization_tests/
-│       └── test_core_units.py       # actualiza ConvertWithRealUnitMeasureModelTests (cita spec 134)
+│       └── test_core_units.py       # actualiza ConvertWithRealUnitMeasureModelTests (cita spec 135)
 ├── alembic/versions/
 │   └── <rev>_134_unit_conversion_compras.py   # NUEVA migración (aditiva + backfill)
 └── app/scripts/

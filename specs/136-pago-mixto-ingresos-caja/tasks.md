@@ -1,11 +1,11 @@
 ---
 
-description: "Task list for spec 135 implementation"
+description: "Task list for spec 136 implementation"
 ---
 
 # Tasks: Métodos distintos en pago mixto e ingresos de caja por método de pago
 
-**Input**: Design documents from `/specs/135-pago-mixto-ingresos-caja/`
+**Input**: Design documents from `/specs/136-pago-mixto-ingresos-caja/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api.md, quickstart.md (all present)
 
