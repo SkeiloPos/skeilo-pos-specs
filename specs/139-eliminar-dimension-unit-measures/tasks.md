@@ -134,7 +134,7 @@ de forma independiente.
 
 - [x] T023 [P] Ejecutar `npm run build` (o el comando de typecheck configurado) en `../pos-heladeria` y confirmar que compila sin errores
 - [x] T024 Ejecutar `grep -rn "\.dimension\b" app/ --include="*.py"` en `../pos-backend` y `grep -rn "\.dimension\b" src/ --include="*.ts"` en `../pos-heladeria`; confirmar que no quedan referencias relacionadas con `UnitMeasure`/`unit_measures` (ignorar falsos positivos tipo "dimensionar"/"redimensionar")
-- [ ] T025 Ejecutar el flujo completo de `quickstart.md` (migración upgrade/downgrade/upgrade, tests, script de integración, build de frontend, prueba manual del formulario de compra) y confirmar todos los resultados esperados
+- [x] T025 Ejecutar el flujo completo de `quickstart.md` (migración upgrade/downgrade/upgrade, tests, script de integración, build de frontend, prueba manual del formulario de compra) y confirmar todos los resultados esperados
 
 ---
 
