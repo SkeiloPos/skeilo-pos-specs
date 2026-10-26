@@ -1,6 +1,6 @@
 # Data Model: Compra de Insumos con Conversión a Unidad Base
 
-**Spec**: `specs/134-conversion-unidades-compra/spec.md` | Decisiones: ver `research.md`
+**Spec**: `specs/135-conversion-unidades-compra/spec.md` | Decisiones: ver `research.md`
 
 Todas las tablas nuevas/modificadas viven en el esquema `tenant` salvo donde se indique
 `shared` explícitamente. Todo cambio es aditivo y con backfill (Principio VIII).

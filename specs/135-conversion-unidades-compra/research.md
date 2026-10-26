@@ -1,6 +1,6 @@
 # Research: Compra de Insumos con Conversión a Unidad Base
 
-**Spec**: `specs/134-conversion-unidades-compra/spec.md` | **Fecha**: 2026-10-24
+**Spec**: `specs/135-conversion-unidades-compra/spec.md` | **Fecha**: 2026-10-24
 
 Este documento resuelve las decisiones técnicas necesarias para implementar la spec,
 apoyándose en hallazgos concretos del código de `pos-backend`. No hay "NEEDS
@@ -38,7 +38,7 @@ usar una tabla sería remar contra ese diseño ya congelado como intención futu
 Numeric(18,6) NOT NULL DEFAULT 1`. Esto convierte el `AttributeError` congelado en
 `test_rn_cat_41_unit_measure_real_no_tiene_dimension_attributeerror` en comportamiento
 obsoleto: ese characterization test deja de reflejar la realidad y se actualiza en el
-mismo cambio (Principio III: el spec que autoriza el cambio es esta spec 134; se cita
+mismo cambio (Principio III: el spec que autoriza el cambio es esta spec 135; se cita
 aquí y en el commit que lo toca). El resto de `ConvertWithDuckTypedUnitsTests` sigue
 pasando sin tocarse: siguen usando objetos `SimpleNamespace`, no el modelo real.
 
@@ -76,7 +76,7 @@ escala anterior porque ningún valor histórico excede `Numeric(12,3)`).
 rama para `supplier_item_id` (presentación de proveedor, spec 106/107) que calcula
 `quantity`/`unit_cost` ya convertidos a unidad base del insumo, y otra rama "directa" en
 la que `quantity`/`unit_cost` ya SON la unidad base (porque no hay conversión). Esta spec
-134 generaliza la conversión para **cualquier** unidad del mismo grupo de medida del
+135 generaliza la conversión para **cualquier** unidad del mismo grupo de medida del
 insumo, no solo las presentaciones pactadas con un proveedor concreto. Las dos rutas son
 conceptualmente distintas (una u otra, nunca ambas) y la ruta `supplier_item_id` queda
 congelada tal cual (Principio II/III): esta spec no la modifica.

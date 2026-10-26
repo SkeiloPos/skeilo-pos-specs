@@ -5,7 +5,7 @@ description: "Task list template for feature implementation"
 
 # Tasks: Compra de Insumos con Conversión a Unidad Base
 
-**Input**: Design documents from `/specs/134-conversion-unidades-compra/`
+**Input**: Design documents from `/specs/135-conversion-unidades-compra/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api-changes.md, quickstart.md (todos presentes)
 
@@ -54,7 +54,7 @@ implementación y prueba independiente de cada una. Rutas relativas a
 - [X] T008 [P] Añadir `REF_PURCHASE_VOID = "purchase_void"` a `pos-backend/app/core/inventory_reasons.py`, junto a `REF_ORDER_VOID`
 - [X] T009 [P] Añadir `Tenant.unit_conversion_enabled: bool NOT NULL DEFAULT true` (esquema `shared`) en `pos-backend/app/core/models.py` (research.md D8)
 - [X] T010 Completar la migración `pos-backend/alembic/versions/<rev>_134_unit_conversion_compras.py` (T001) con: `add_column` para T002–T009, `create_table` para `unit_measure_factor_changes` (T003), backfill SQL para `unit_measures.dimension='general'`/`factor_to_base=1` en filas existentes, backfill SQL para `purchase_items` (`unit_measure_id = inventory_items.unit_measure_id` vía join, `conversion_factor_applied=1`, `quantity_base=quantity`, `cost_base=unit_cost`) por cada tenant schema, y los `NOT NULL`/FK finales después del backfill (depende de T002–T009; research.md D2/D5, data-model.md)
-- [X] T011 Actualizar `test_rn_cat_41_unit_measure_real_no_tiene_dimension_attributeerror` y `test_rn_cat_41_unit_measure_no_declara_esas_columnas_en_absoluto` en `pos-backend/app/characterization_tests/test_core_units.py` para reflejar que `UnitMeasure` ya declara `dimension`/`factor_to_base` (citar spec 134 en el comentario), sin tocar `ConvertWithDuckTypedUnitsTests` (depende de T002; research.md D2)
+- [X] T011 Actualizar `test_rn_cat_41_unit_measure_real_no_tiene_dimension_attributeerror` y `test_rn_cat_41_unit_measure_no_declara_esas_columnas_en_absoluto` en `pos-backend/app/characterization_tests/test_core_units.py` para reflejar que `UnitMeasure` ya declara `dimension`/`factor_to_base` (citar spec 135 en el comentario), sin tocar `ConvertWithDuckTypedUnitsTests` (depende de T002; research.md D2)
 - [X] T012 Aplicar la migración con `alembic upgrade head` desde el venv de `pos-backend` y verificar que no falla sobre el Postgres local (depende de T010)
 
 **Checkpoint**: Esquema listo; `convert()` ya no lanza `AttributeError` contra el modelo real; el resto del código de aplicación aún no usa las columnas nuevas.
