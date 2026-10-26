@@ -83,7 +83,7 @@ compartir el link).
   padre 1:1), introduce una tabla cuyo único propósito es agrupar como máximo 2 filas, y no aporta
   nada que `group_id` no resuelva ya para FR-011. Se preferiría solo si el negocio pidiera un
   estado o atributos propios del "evento" (no los pide: categoría/descripción ya son por línea,
-  comparten los mismos valores en spec 135 por construcción del formulario, ver data-model.md).
+  comparten los mismos valores en spec 136 por construcción del formulario, ver data-model.md).
 - **Un solo `CashMovement` con dos columnas de monto/método (`amount_1`/`method_1`/`amount_2`/
   `method_2`)**: descartada — es el mismo patrón que `OrderPaymentAttempt.cash_amount`/
   `transfer_amount` (spec 130), pero ese patrón ya demostró ser menos extensible (spec 132 lo
