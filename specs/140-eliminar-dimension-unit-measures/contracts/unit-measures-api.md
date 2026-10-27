@@ -1,6 +1,6 @@
 # Contrato: Retiro de `dimension` en la API de Unidades de medida
 
-**Spec**: `specs/139-eliminar-dimension-unit-measures/spec.md` | **Fecha**: 2026-10-26
+**Spec**: `specs/140-eliminar-dimension-unit-measures/spec.md` | **Fecha**: 2026-10-26
 
 Este documento cubre únicamente el ajuste que esta spec introduce sobre `GET
 /unit-measures`. Ningún otro endpoint de `unit-measures` ni de `unit-measure-groups` cambia:

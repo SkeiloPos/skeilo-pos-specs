@@ -5,7 +5,7 @@ description: "Task list template for feature implementation"
 
 # Tasks: Eliminar columna `dimension` en unidades de medida
 
-**Input**: Design documents from `/specs/139-eliminar-dimension-unit-measures/`
+**Input**: Design documents from `/specs/140-eliminar-dimension-unit-measures/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/unit-measures-api.md, quickstart.md
 

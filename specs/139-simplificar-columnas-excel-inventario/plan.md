@@ -1,8 +1,8 @@
 # Implementation Plan: Simplificar columnas de proveedor en Excel de inventario y vincular unidad a unidades de medida reales
 
-**Branch**: `138-simplificar-columnas-excel-inventario` | **Date**: 2026-10-26 | **Spec**: [spec.md](./spec.md)
+**Branch**: `139-simplificar-columnas-excel-inventario` | **Date**: 2026-10-26 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/138-simplificar-columnas-excel-inventario/spec.md`
+**Input**: Feature specification from `/specs/139-simplificar-columnas-excel-inventario/spec.md`
 
 **Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
 
@@ -82,7 +82,7 @@ parámetro para omitir `unit_measure_id` en actualización) + tests nuevos/actua
 | IX. Dependencias nuevas | N/A — no se añade ninguna dependencia. |
 | X. Verificación obligatoria | ✅ Ver `quickstart.md` (7 escenarios) + characterization tests actualizados + script de importación masiva corrido contra Postgres real para confirmar el cierre del gap de `group_id`. |
 | XI. Negocio vs. técnico | ✅ Las dos decisiones de negocio (qué pasa si la unidad no existe al crear; qué pasa con la columna unidad al actualizar) ya están resueltas y citadas en la sección "Aclaraciones previas" del spec, no son criterio técnico de implementación. |
-| XII. Trazabilidad | ✅ Cadena completa: Necesidad (spec 109 generaba confusión tras spec 137) → spec 138 → decisiones ya registradas en el propio spec → este plan → tests → quickstart. |
+| XII. Trazabilidad | ✅ Cadena completa: Necesidad (spec 109 generaba confusión tras spec 137) → spec 139 → decisiones ya registradas en el propio spec → este plan → tests → quickstart. |
 | XIII. Español de Colombia | ✅ Todos los artefactos de esta fase (plan, research, data-model, contratos, quickstart) en español de Colombia; nombres de rama/commits en inglés (ver XIV/XV). |
 | XIV. Rama Git | ⚠️ Pendiente al iniciar implementación: crear rama en `pos-backend` con nombre `feat/138-inventory-excel-unit-link` (o equivalente) **antes** de tocar código — este plan no modifica código, por lo que no se crea rama en esta fase. |
 | XV. Commits | ⚠️ Pendiente: commits solo bajo pedido explícito del usuario durante la implementación, en inglés, Conventional Commits, sin marca de autoría de IA. No aplica a esta fase de planeación (no se generan commits aquí). |
@@ -96,7 +96,7 @@ bloqueados en esta fase de planeación.
 ### Documentation (this feature)
 
 ```text
-specs/138-simplificar-columnas-excel-inventario/
+specs/139-simplificar-columnas-excel-inventario/
 ├── plan.md              # This file (/speckit-plan command output)
 ├── research.md          # Phase 0 output (/speckit-plan command)
 ├── data-model.md        # Phase 1 output (/speckit-plan command)

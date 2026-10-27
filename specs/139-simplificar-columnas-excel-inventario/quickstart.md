@@ -1,4 +1,4 @@
-# Quickstart: Verificación de la spec 138
+# Quickstart: Verificación de la spec 139
 
 **Spec**: [spec.md](./spec.md) | **Contrato**: [contracts/plantilla-excel-inventario.md](./contracts/plantilla-excel-inventario.md)
 

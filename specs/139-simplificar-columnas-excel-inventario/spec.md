@@ -1,6 +1,6 @@
 # Feature Specification: Simplificar columnas de proveedor en Excel de inventario y vincular unidad a unidades de medida reales
 
-**Feature Branch**: `138-simplificar-columnas-excel-inventario`
+**Feature Branch**: `139-simplificar-columnas-excel-inventario`
 
 **Created**: 2026-10-26
 
