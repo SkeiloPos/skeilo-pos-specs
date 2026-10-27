@@ -1,6 +1,6 @@
 # Feature Specification: Eliminar columna `dimension` en unidades de medida
 
-**Feature Branch**: `139-eliminar-dimension-unit-measures`
+**Feature Branch**: `140-eliminar-dimension-unit-measures`
 
 **Created**: 2026-10-26
 

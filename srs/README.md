@@ -143,7 +143,7 @@ graph TB
 
 - Se asume disponibilidad de PostgreSQL, Redis, Cloudflare R2 (S3-compatible) y, en producción, Sentry; fuera de `prod`, los fallos de Sentry/push/correo son no-op o best-effort y nunca rompen la operación de negocio que los dispara — ver `inventario-backend.md` § `super_admin`/`notifications`/`uploads`.
 - Se asume que `pos-heladeria` es el único cliente oficial de la API; cualquier otro consumidor (integración externa, app móvil) no está documentado ni contemplado en los contratos de error observados.
-- El reloj de referencia para vigencia de promociones, turnos de caja, reportes y horario de negocio es siempre la zona horaria del tenant, nunca UTC crudo — ver 3.4.
+- El reloj de referencia para vigencia de promociones, turnos de caja, reportes y horario de negocio es siempre la zona horaria del tenant, nunca UTC crudo — ver 3.4. Los instantes se almacenan en UTC (la sesión de PostgreSQL se fuerza a UTC al conectar) y todo instante que devuelve la API lleva offset UTC explícito (`+00:00`); la única excepción es la hora de pared local de `starts_at`/`ends_at` de una promoción. Cada tenant elige su zona de una lista curada de siete al darse de alta (spec 138).
 
 ## 3. Requisitos específicos
 
@@ -400,12 +400,13 @@ _Pendiente (T036-T041 — un bloque por grupo backend G1-G6)._
 
 - **Enunciado**: El sistema deberá crear el esquema de base de datos de un tenant nuevo, sus tablas, y su primer usuario `ADMIN`, enviándole credenciales temporales por correo.
 - **Actor**: Super Admin
-- **Precondiciones**: migraciones de Alembic al día; `plan_id` existente; host no reservado [CÓDIGO: pos-backend/app/core/db.py:56-81]
-- **Entradas**: `TenantCreateWithUser {tenant_name, schema_name, host, name, email, plan_id, ciclo_facturacion}` [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:192-218]
-- **Salidas**: `{status:"ok", tenant}` [CÓDIGO: pos-backend/app/api/v1/super_admin/router.py:125-173]
+- **Precondiciones**: migraciones de Alembic al día; `plan_id` existente; host no reservado [CÓDIGO: pos-backend/app/core/db.py:90-198]
+- **Entradas**: `TenantCreateWithUser {tenant_name, schema_name, host, name, email, plan_id, ciclo_facturacion, timezone?}` [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:197-235]
+- **Salidas**: `{status:"ok", tenant}` [CÓDIGO: pos-backend/app/api/v1/super_admin/router.py:125-174]
 - **Reglas de negocio**:
-  - `plan_id` y `ciclo_facturacion` son obligatorios, sin default — `null` es una elección válida de "sin vencimiento", no un valor implícito [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:212-217]
-  - `host` rechaza subdominios reservados de la plataforma (`admin`, `assets`, `api`, `docs`, `www`, `app`) [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:200-210]
+  - `plan_id` y `ciclo_facturacion` son obligatorios, sin default — `null` es una elección válida de "sin vencimiento", no un valor implícito [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:217-222]
+  - `host` rechaza subdominios reservados de la plataforma (`admin`, `assets`, `api`, `docs`, `www`, `app`) [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:205-215]
+  - `timezone` es opcional en la API: ausente ⇒ el tenant nace en `America/Bogota`; presente e inválida (no es una zona IANA reconocida con forma `Área/Lugar` o `UTC`) ⇒ **422 antes de crear nada**. La pantalla la exige de una lista curada de siete zonas, sin valor preseleccionado. Un disparador de `shared.tenants` aplica la misma regla en la base de datos; si PostgreSQL rechaza una zona que Python acepta (p. ej. el alias heredado `Asia/Calcutta`), el alta responde 422 y no crea nada [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:224-235; pos-backend/app/core/db.py:90-198; pos-backend/alembic/versions/af8fd44b3c4e_138_tenant_timezone_trigger.py]
   - La contraseña del admin nuevo se genera aleatoriamente (12 caracteres) en el servidor, nunca la elige el Super Admin ni queda en la respuesta [CÓDIGO: pos-backend/app/api/v1/super_admin/router.py:127,144-153]
   - Un fallo al encolar el correo de bienvenida no revierte la creación ya comprometida [CÓDIGO: pos-backend/app/api/v1/super_admin/router.py:160-171]
 - **Criterio de aceptación**: **Dado** un `host` que coincide con un subdominio reservado, **cuando** se crea el tenant, **entonces** la petición se rechaza por validación antes de tocar la base de datos [CÓDIGO: pos-backend/app/api/v1/super_admin/schemas.py:200-210].
@@ -497,7 +498,7 @@ _Pendiente (T036-T041 — un bloque por grupo backend G1-G6)._
 - **Actor**: Admin, Cajero, Mesero
 - **Entradas**: ninguna
 - **Salidas**: `TenantInfoResponse` (incluye `logo_url` ensamblada contra `ASSETS_BASE_URL`) [CÓDIGO: pos-backend/app/api/v1/tenant/schemas.py:6-21]
-- **Reglas de negocio**: `timezone` es de solo lectura — no existe en `TenantUpdate` [CÓDIGO: pos-backend/app/api/v1/tenant/schemas.py:17-19,24-36]
+- **Reglas de negocio**: `timezone` es de solo lectura — no existe en `TenantUpdate` [CÓDIGO: pos-backend/app/api/v1/tenant/schemas.py:17-19,24-36]; se fija en el alta (Super Admin) o, para un tenant ya creado, con el script interno `set_tenant_timezone.py`, que advierte que el historial se reinterpreta en la nueva zona (spec 138)
 - **Criterio de aceptación**: **Dado** un tenant con logo guardado como `key` relativa, **cuando** se consulta, **entonces** `logo_url` llega como URL absoluta lista para `<img>` [CÓDIGO: pos-backend/app/characterization_tests/test_tenant_logo_key.py:94].
 - **Prioridad**: Media.
 - **Trazabilidad**: Endpoint(s): `GET /api/v1/tenant`; Pantalla(s): `/dashboard/ajustes/*` (settings, tenant-info); Entidad(es): `Tenant`.

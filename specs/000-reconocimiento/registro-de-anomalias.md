@@ -5231,6 +5231,170 @@ nuevos que verifiquen el rechazo (ver `specs/136-pago-mixto-ingresos-caja/quicks
 
 ---
 
+### A-147 — [DECISIÓN DE NEGOCIO — spec 138] El «día de negocio» deja de ser el día UTC: el segundo rechazo del día de una mesa y el día del nombre del export de inventario
+
+**Qué cambia**: dos sitios usan hoy la fecha **UTC** como si fuera la fecha **local** del tenant, y la
+spec [137](../138-soporte-zona-horaria-tenant/spec.md) (FR-007, FR-009, FR-013) los pasa a la fecha local:
+
+1. El aviso de «segundo rechazo de pago del día» para la misma mesa (spec 132, FR-020) calcula la
+   ventana del día con `local_day_bounds_utc(utc_now().date(), tz)`
+   (`pos-backend/app/api/v1/orders/checkout.py:1423`). Entre las 19:00 y las 24:00 de Bogotá el día UTC
+   ya es el siguiente: la ventana queda vacía y la marca de revisión **no se registra**. Con la
+   corrección, dos rechazos de la misma mesa a las 20:00 y a las 21:00 de Bogotá sí dejan la marca.
+2. El nombre del archivo de exportación de inventario lleva el día UTC
+   (`pos-heladeria/src/app/modules/inventory/pages/inventory-page.component.ts:654`; el backend usa
+   `date.today()` del servidor en `inventory/router.py:90`). Entre las 19:00 y las 24:00 de Bogotá el
+   archivo sale con el día siguiente; con la corrección lleva el día local.
+
+**Por qué cambia**: el primero es un defecto que **ya afecta a Bogotá** (se pierde una señal de revisión
+pensada para detectar abuso de rechazos); el segundo es el mismo error de criterio en otro sitio. Ambos
+son la parte del hallazgo «día UTC ≠ día de negocio» que las specs 030 y 127 no alcanzaron (A-50 corrigió
+los filtros de fecha de Ventas y Reportes, no estos dos sitios).
+
+**Quién y cuándo**: equipo de desarrollo, 2026-10-25, al solicitar la spec 138 y confirmar, en la ronda
+de aclaraciones de esa misma fecha, que ambos cambios son excepciones explícitas a FR-013 («Bogotá no
+cambia»). **PENDIENTE de ratificación con el negocio**: no es una decisión validada con el rigor de las
+rondas 1 y 2 de entrevista.
+
+**Funcionalidades afectadas**: auditoría de rechazos de pago por mesa (spec 132) y exportación de
+inventario a Excel (spec 086). No afecta la atribución de turnos (R6 de la spec 138: el turno de una
+venta lo define su vínculo con el turno de caja, no la hora) ni ningún valor ya almacenado.
+
+**Riesgo asumido**: no se genera retroactivamente ninguna marca de revisión para rechazos pasados
+(Principio VII: no se recalculan datos históricos). Un archivo de inventario ya descargado conserva el
+nombre que tenía.
+
+**Tests afectados**: ninguno con prefijo `"CONGELA comportamiento actual:"` fija estos dos
+comportamientos; la planificación lo reconfirma. Se agregan pruebas nuevas con tres zonas (Bogotá,
+Ciudad de México, Madrid).
+
+**Clasificación**: DECISIÓN DE NEGOCIO (corrige un BUG A SECAS que afecta a Bogotá). **Tratamiento
+acordado**: `specs/138-soporte-zona-horaria-tenant/spec.md` (Clarifications, FR-007, FR-009, FR-013).
+
+**Estado (2026-10-26)**: **IMPLEMENTADA** en la spec 138 (suites en verde con la zona del sistema, `Asia/Tokyo` y `UTC`;
+guardas probadas). Se implementó **antes** de la ratificación del negocio, por decisión del equipo de desarrollo, en un
+commit propio y revertible (spec 138, `tasks.md`); sigue **pendiente de ratificación con el negocio** (T099). Si el
+negocio no la ratifica, se revierte ese commit y se abre una spec aparte; no se revierte en silencio.
+
+---
+
+### A-148 — [DECISIÓN DE NEGOCIO — spec 138] Todo instante que devuelve la API lleva offset UTC explícito; cambia lo que ve un tenant de Bogotá en «desde hace…» y «Enviada el…»
+
+**Qué cambia**: varios esquemas de respuesta de la API declaran el instante como `datetime` plano en lugar
+de `UtcDatetime`, y por eso viajan como «2026-10-25T17:00:00» sin offset. La spec
+[137](../138-soporte-zona-horaria-tenant/spec.md) (FR-001, FR-003) hace que **ningún** instante viaje sin
+offset, salvo la excepción por diseño de los campos de hora de pared local de promociones (FR-002).
+
+**Inventario definitivo** (medido sobre el OpenAPI real, no sobre la lista inicial de
+[`hallazgos.md`](../138-soporte-zona-horaria-tenant/hallazgos.md) sección D, que quedó corta; el contrato
+completo está en [`contracts/instantes-api.md`](../138-soporte-zona-horaria-tenant/contracts/instantes-api.md)):
+esquemas de respuesta alcanzables con `format: date-time` plano —
+productos (`available_changed_at`, `created_at`, `updated_at`; `ProductResponse` y los tres que lo heredan),
+invitaciones (`sent_at`), carrito e intentos de pago (`SessionOpenResponse.expires_at`,
+`DinerPaymentAttempt.created_at`/`cash_confirmed_at`), mesas (`ParticipantResponse.expires_at`), super admin
+(`TenantResponse.plan_vence_en`/`created_at`/`updated_at`, **`PaymentMethodCatalogResponse`** y
+**`PlanResponse`** `created_at`/`updated_at`), promociones (**`closed_by_refactor_at`**; `starts_at`/`ends_at`
+son la excepción), categorías, presentaciones, usuarios y unidades de medida (`created_at`, `updated_at`), y,
+tras mergear las specs de grupos de unidades (`develop`, 2026-10-26), **`UnitMeasureGroupResponse`**
+(`created_at`, `updated_at`) y **`FactorChangeResponse.changed_at`**. Las entradas en negrita no figuraban en
+la primera versión de esta anomalía. El conjunto exacto lo fija y lo vigila `test_contrato_instantes_api.py`.
+
+**Por qué cambia**: un navegador interpreta «2026-10-25T17:00:00» como hora **local**; en Bogotá lo lee
+como 22:00 UTC, un error de 5 h que **hoy ya se ve** en el «desde hace…» de «producto agotado» y en el
+«Enviada el…» de invitaciones. Con el offset explícito el navegador siempre obtiene el mismo instante y lo
+muestra en la zona del tenant. Es la parte de A-50 que la spec 030 dejó sin cubrir en estos módulos.
+
+**Quién y cuándo**: equipo de desarrollo, 2026-10-25, en la solicitud de la spec 138 y su ronda de
+aclaraciones. **PENDIENTE de ratificación con el negocio**.
+
+**Funcionalidades afectadas**: pantallas que muestran esos campos (producto agotado, invitaciones
+pendientes, plan y tenants de Super Admin, listados de categorías, presentaciones, usuarios y unidades). La
+búsqueda de lógica del frontend que compense a mano la falta de offset (`getTimezoneOffset`, `+ 'Z'`,
+`replace(' ', 'T')`) dio **ninguna** (research.md de la spec 138, R0.4): no hay riesgo de doble corrección.
+
+**Riesgo asumido**: el contrato JSON de esos campos cambia de forma (agrega el offset). El único
+consumidor conocido es `pos-heladeria` (supuesto de la spec 138, a confirmar en la planificación).
+Ningún valor almacenado cambia.
+
+**Tests afectados**: la verificación automática de FR-003 es nueva; los characterization tests que
+comparen la cadena exacta de estos campos, si existen, se actualizan con aprobación explícita
+(Principio III).
+
+**Clasificación**: DECISIÓN DE NEGOCIO (corrige un BUG A SECAS visible hoy en Bogotá). **Tratamiento
+acordado**: `specs/138-soporte-zona-horaria-tenant/spec.md` (Clarifications, FR-001 a FR-003, FR-013).
+
+**Estado (2026-10-26)**: **IMPLEMENTADA** en la spec 138 (suites en verde con la zona del sistema, `Asia/Tokyo` y `UTC`;
+guardas probadas). Se implementó **antes** de la ratificación del negocio, por decisión del equipo de desarrollo, en un
+commit propio y revertible (spec 138, `tasks.md`); sigue **pendiente de ratificación con el negocio** (T099). Si el
+negocio no la ratifica, se revierte ese commit y se abre una spec aparte; no se revierte en silencio.
+
+---
+
+### A-149 — Deuda residual de zona horaria tras las specs 022, 023, 030 y 127, corregida sin cambio de comportamiento para un tenant de Bogotá
+
+**Descripción**: el mecanismo central de zona horaria por tenant (A-46, A-50) existe, pero quedaron lugares
+que no lo usan o que dependen de la configuración del entorno. Verificados el 2026-10-25 (detalle en
+[`hallazgos.md`](../138-soporte-zona-horaria-tenant/hallazgos.md)):
+
+- **Base de datos**: la sesión de PostgreSQL no se fuerza a UTC (`app/core/db.py`); los instantes se
+  escriben de tres formas distintas (`utc_now()` aware, `utc_now().replace(tzinfo=None)` y
+  `server_default=func.now()`). Hoy funciona solo porque el contenedor arranca en UTC.
+- **Promociones**: ocho llamadas a `auto_discount` no pasan el tenant y caen en la zona global
+  (`sales/service.py:373`, `orders/tables_advanced.py:161`, `orders/checkout.py:1305/1650/1802`,
+  `table_sessions/service.py:235/758/868`). Es el camino residual de A-08/A-46.
+- **Frontend**: ticket impreso, reloj/fecha/turno de la terminal, hora de pedidos, gráfica, notificaciones,
+  plan, tenants, invitaciones y `isPromoActiveNow` usan la zona del navegador; `America/Bogota` está
+  repetida como constante de respaldo en cuatro archivos (A-09 corrigió solo la vista previa).
+- **Zona del tenant**: solo se fija con `set_tenant_timezone.py`; el alta de tenant no la pide y nace en
+  Bogotá; la validación IANA existe solo en el ORM; el correo de contraseña cambiada dice «(hora de
+  Colombia)» fijo y usa la zona global.
+- **Pruebas**: solo 4 archivos de pruebas usan una zona distinta de Bogotá.
+
+**Lo que la planificación y la implementación descubrieron** (no estaba en la descripción original):
+
+- **La suite del backend dependía de la hora del día**: entre las 19:00 y las 24:00 de Bogotá fallaba
+  `test_segundo_rechazo_del_dia…` (el defecto C, también con `TZ=UTC`), y con `TZ=Asia/Tokyo` fallaban dos pruebas que
+  leían la hora LOCAL de la máquina para una columna en UTC (`test_auth_session_revocation` y
+  `test_table_sessions_router`). Corregidas; el fixture `make_payment_attempt` también usaba `datetime.now()`.
+  En el frontend, `order-detail.component.spec` usaba un `created_at` sin offset (dependía de la zona del navegador).
+  Los 154 specs de fechas del frontend pasaban con el código incorrecto porque no variaban la zona.
+- **`connect_args={"options": "-c timezone=UTC"}` NO funciona** contra `PGTZ`: la sesión conserva la zona de `PGTZ` y las
+  17:00 UTC se guardan como 12:00. Lo que sí funciona (medido contra PostgreSQL real) es un evento `connect` de SQLAlchemy
+  con `SET TIME ZONE 'UTC'` en autocommit.
+- **El inventario de instantes sin offset** salió del OpenAPI real y es mayor que el de `hallazgos.md`: se sumaron
+  `PaymentMethodCatalogResponse`, `PlanResponse`, `PromotionResponse.closed_by_refactor_at`, `ParticipantResponse.expires_at`
+  y, tras mergear las specs de grupos de unidades, `UnitMeasureGroupResponse` y `FactorChangeResponse` (A-148).
+- **Un disparador en `shared.tenants`** valida la zona contra la base IANA del propio motor (un `CHECK` no puede consultar
+  `pg_timezone_names`). PostgreSQL 16 de Debian no lista alias heredados como `Asia/Calcutta` (Python sí): el alta de tenant
+  traduce ese rechazo (SQLSTATE `22023`) a 422. Si algún tenant tiene ya una zona inválida, la migración **omite** el
+  disparador y avisa, sin abortar el arranque del API.
+- **Más llamadores de promociones sin tenant** que los 8 de `auto_discount`: `confirm_cash_payment_attempt` y
+  `adjust_split_payment_attempt` validaban el monto con `compute_checkout_preview` sin tenant (otra zona que la venta).
+  Incluidos y corregidos.
+- **Deuda residual FUERA de alcance** (FR-006 lista los caminos de cobro; esto es el snapshot por línea del pedido):
+  ~10 llamadas a `refresh_order_item_discounts(db, order)` sin tenant (`orders/kitchen.py`, `additions.py` ×3,
+  `consolidation.py` ×2, `service.py`, `toppings.py` ×3) evalúan en la zona global de respaldo (Bogotá). No afecta a un
+  tenant de Bogotá; sí a uno de otra zona (el descuento por línea mostrado puede discrepar del cobro). **Candidata a spec
+  aparte.**
+
+- **CÓDIGO**: ver `hallazgos.md`, secciones A, B, E, F y G.
+  **Clasificación**: **ACCIDENTAL** (deuda técnica sin explotación visible para un tenant de Bogotá:
+  servidor, tenants y navegadores están hoy en la misma zona).
+  **Depende de esto**: cualquier tenant fuera de Bogotá; según la solicitud de la spec 138, todavía no
+  hay clientes fuera de esa zona.
+  **Tratamiento acordado**: corregido en la spec
+  [137](../138-soporte-zona-horaria-tenant/spec.md) **sin cambiar el comportamiento de un tenant de
+  Bogotá** (FR-013), salvo lo registrado en A-147 y A-148. El correo de un tenant de Bogotá conserva
+  exactamente «(hora de Colombia)», protegido por pruebas de caracterización.
+
+**Quién y cuándo**: equipo de desarrollo, 2026-10-25. No requiere decisión de negocio porque no cambia
+comportamiento observable de un tenant existente; se registra para trazabilidad (FR-014).
+
+**Estado (2026-10-26)**: **IMPLEMENTADA** en la spec 138 (`tasks.md`; matrices de zona del backend y del frontend en verde,
+guardas probadas). La deuda residual de `refresh_order_item_discounts` queda registrada arriba como fuera de alcance.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que

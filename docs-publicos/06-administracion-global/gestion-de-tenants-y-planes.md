@@ -37,7 +37,14 @@ acceso a módulos como inventario, compras o promociones).
    precio de referencia mensual y/o uno anual.
 3. El Super Admin abre la sección de gestión de negocios y comienza el alta de uno nuevo,
    diligenciando el nombre del negocio, el subdominio único con el que ese negocio accederá al
-   sistema, y los datos de la cuenta de su primer administrador (correo y nombre completo).
+   sistema, la **zona horaria del negocio** y los datos de la cuenta de su primer administrador
+   (correo y nombre completo). La zona se elige de una lista de siete (Bogotá, Ciudad de México,
+   Lima, Santiago, Buenos Aires, Madrid y Tokio); el formulario no trae ninguna preseleccionada y no
+   deja guardar sin elegir una, para que ningún negocio quede en la hora de Bogotá por olvido. Esa zona
+   decide la hora con la que el negocio ve todas sus pantallas, tickets y correos, y el día que cuenta
+   como «hoy» en sus reportes y promociones. Cambiarla después no se hace desde ninguna pantalla: lo
+   hace el equipo de soporte con un procedimiento interno que advierte que el historial se reinterpreta
+   en la nueva zona.
 4. Como parte del mismo formulario de alta, el Super Admin elige obligatoriamente uno de los
    planes existentes y el ciclo de facturación de esa asignación inicial: mensual, anual, o "sin
    vencimiento" si ese negocio no debe bloquearse nunca automáticamente por tiempo. El formulario

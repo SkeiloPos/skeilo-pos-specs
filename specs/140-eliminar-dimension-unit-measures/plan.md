@@ -1,8 +1,8 @@
 # Implementation Plan: Eliminar columna `dimension` en unidades de medida
 
-**Branch**: `139-eliminar-dimension-unit-measures` | **Date**: 2026-10-26 | **Spec**: [spec.md](./spec.md)
+**Branch**: `140-eliminar-dimension-unit-measures` | **Date**: 2026-10-26 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/139-eliminar-dimension-unit-measures/spec.md`
+**Input**: Feature specification from `/specs/140-eliminar-dimension-unit-measures/spec.md`
 
 **Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
 
@@ -40,7 +40,7 @@ escritura/sincronización en `pos-backend`; y se actualiza el único consumidor 
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Principio I (nace de un spec)**: ✅ este cambio nace de `specs/139-eliminar-dimension-unit-measures/spec.md`.
+- **Principio I (nace de un spec)**: ✅ este cambio nace de `specs/140-eliminar-dimension-unit-measures/spec.md`.
 - **Principio II (comportamiento existente protegido / decisión de negocio)**: el comportamiento de negocio observable (qué conversiones son válidas, qué unidades son compatibles) **no cambia** — solo se retira un campo/filtro de API que la propia spec 137 ya documentó como deuda técnica temporal, sin consumidores externos conocidos (ver Assumptions del spec). Por tanto no se trata de una decisión de negocio nueva que requiera entrada en `registro-de-anomalias.md`; es la ejecución de una decisión ya registrada en `specs/137-rediseno-ajustes/research.md` (D2). Se deja constancia de este razonamiento en `research.md` de esta spec para trazabilidad (Principio XII). **PASA**.
 - **Principio III (characterization tests)**: los tests `"CONGELA comportamiento actual:"` en `test_core_units.py` que fijan la forma actual de `convert()` se actualizan explícitamente como parte de esta spec (no se tocan en silencio); el assert `assertIn("dimension", ...)` se invierte a `assertNotIn` porque el spec autoriza explícitamente la eliminación de la columna. **PASA**.
 - **Principio V/VI (sin refactors sueltos, evolución incremental)**: el alcance se limita estrictamente a eliminar `dimension` y sus usos; no se toca el modelo de `UnitMeasureGroup` ni ninguna otra funcionalidad. Es un único incremento coherente (una columna redundante y sus 6 puntos de uso), no una mezcla de clases de cambio distintas. **PASA**.
@@ -56,7 +56,7 @@ No hay violaciones que requieran `Complexity Tracking`.
 ### Documentation (this feature)
 
 ```text
-specs/139-eliminar-dimension-unit-measures/
+specs/140-eliminar-dimension-unit-measures/
 ├── plan.md              # This file (/speckit-plan command output)
 ├── research.md          # Phase 0 output (/speckit-plan command)
 ├── data-model.md        # Phase 1 output (/speckit-plan command)

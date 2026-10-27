@@ -26,7 +26,7 @@ description: "Task list template for feature implementation"
 
 # Tasks: Simplificar columnas de proveedor en Excel de inventario y vincular unidad a unidades de medida reales
 
-**Input**: Design documents from `/specs/138-simplificar-columnas-excel-inventario/`
+**Input**: Design documents from `/specs/139-simplificar-columnas-excel-inventario/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/plantilla-excel-inventario.md, quickstart.md
 
