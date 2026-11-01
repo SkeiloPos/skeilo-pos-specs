@@ -5462,6 +5462,79 @@ III), no en silencio. Characterization test nuevo para el invariante ya existent
 
 ---
 
+### A-151 — [DECISIÓN DE NEGOCIO — spec 147] Colapso de estados de pedido/ítem (5→3 / 3→2 / 4→3) y liberación de mesa siempre manual, sin TTL
+
+**Qué cambia**: tres comportamientos del backend (`pos-backend`), con reflejo de etiquetas en el
+frontend (`pos-heladeria`):
+
+1. **`CustomerOrder.status` pasa de 5 valores a 3**: `'pendiente' | 'abierta' | 'bloqueada' |
+   'pagada' | 'cancelada'` → `'pendiente' | 'entregada' | 'cancelada'`. `'abierta'` se funde en
+   `'pendiente'`; `'bloqueada'` y `'pagada'` se funden en `'entregada'`. La entrega deja de ser una
+   acción por ítem (`kitchen_transition`) y pasa a ser una sola acción idempotente por pedido
+   completo (`POST /orders/{id}/deliver`), que no toca `payment_status`.
+2. **`CustomerOrder.payment_status` pasa de 3 valores a 2**: `'UNPAID' | 'PAID' | 'PARTIAL'` →
+   `'UNPAID' | 'PAID'`; `'PARTIAL'` se funde en `'UNPAID'`. Pasa a evolucionar de forma
+   completamente independiente de `status` (cobrar nunca cambia `status`; entregar nunca cambia
+   `payment_status`).
+3. **`OrderItem.estado_cocina` pasa de 4 valores a 3**: `'pendiente' | 'en_preparacion' | 'listo' |
+   'anulado'` → `'pendiente' | 'entregado' | 'cancelado'`. Ya no tiene acción propia: sigue siempre
+   el estado del pedido, salvo un ítem agregado después de que el pedido ya está `'entregada'`
+   (nace `'pendiente'` hasta la siguiente acción "Entregar").
+4. **Liberación de mesa** (`release_paid_session`) deja de evaluar "¿hay algo por cobrar?" y pasa a
+   evaluar "¿hay alguna orden `'pendiente'`, o `'entregada'`+`payment_status='UNPAID'`?" — rechazo
+   devuelve la lista de esas órdenes. Sigue siendo **siempre manual**, sin ningún mecanismo de
+   liberación por tiempo (el barrido de sesiones huérfanas por TTL, `research.md` R6 de esta spec,
+   es un mecanismo distinto que no cambia: solo libera sesiones sin comensales activos).
+
+**Por qué cambia**: autorizado por `specs/147-entrega-pago-liberacion-mesa/spec.md` (FR-001 a
+FR-023, clarificaciones resueltas en sesión 2026-11-01) y por `plan.md`/`research.md`/
+`data-model.md` de la misma spec: el modelo de 5 estados mezclaba el eje operativo (¿se entregó?)
+con el eje financiero (¿se cobró?) en un solo campo, forzando transiciones intermedias
+(`'bloqueada'`) que no reflejaban una decisión de negocio real, y la entrega por ítem individual no
+tenía ningún requisito que la exigiera. Ver `specs/147-entrega-pago-liberacion-mesa/research.md`
+(R1-R8) para el detalle técnico de la migración y de cada punto de lectura afectado.
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de planificación de la spec
+147, 2026-11-01, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: entrega de pedidos (`app/api/v1/orders/kitchen.py`, `router.py` —
+retira `PATCH /items/{id}/kitchen`, `start-preparation`, `ready`; agrega `POST /{id}/deliver`),
+cobro y confirmación (`app/api/v1/orders/checkout.py`), constantes de estado no terminal
+(`app/api/v1/orders/service.py`, `app/api/v1/cart/service.py`), liberación e historial de mesa
+(`app/api/v1/table_sessions/service.py`, `tables_advanced.py`, `consolidation.py`), el índice
+parcial `idx_active_order_per_participant` (`customer_order.py`), el evento de tiempo real nuevo
+`order_delivered` (`app/core/events.py`), y las etiquetas/clases de estado del frontend
+(`order-status.util.ts`, `dining.interface.ts`). No toca facturación ni reescribe ninguna
+`Sale`/`Invoice` ya emitida — solo campos operativos de pedido/ítem.
+
+**Riesgo asumido**: la migración de datos fuerza (FR-023 in fine) el estado de ítem a partir del
+estado final del pedido para los casos que quedaban ambiguos tras el colapso (p. ej. un ítem
+`'pendiente'` de un pedido que terminó `'bloqueada'`→`'entregada'` se fuerza a `'entregado'`); esto
+pierde, de forma irreversible, la distinción entre un ítem que ya estaba en su estado final y uno
+que se forzó. Aceptado como consecuencia directa del colapso de estados, documentado también en
+`data-model.md` (§ Rollback) con el mismo criterio ya aceptado en la migración precedente
+(`e967f9848848`, spec 146).
+
+**Tests afectados**: characterization tests que fijan hoy el comportamiento de
+`kitchen_transition`/`start-preparation`/`ready`, o que citan `'abierta'`, `'bloqueada'`,
+`'pagada'`, `'PARTIAL'`, `'en_preparacion'`, `'listo'` o `'anulado'`
+(`test_orders_kitchen.py`, `test_orders_checkout.py`, `test_orders_payment_gate.py`,
+`test_cart_payment_attempts.py`, `test_orders_tables_advanced.py`,
+`test_orders_consolidation.py`, `test_table_sessions_service.py`, `test_table_sessions_router.py`,
+`test_cash_close_active_orders.py`) se actualizan explícitamente citando esta entrada (Principio
+III), no en silencio. Test nuevo de migración (`test_migration_147_simplify_status.py`) verifica
+SC-007 (ningún registro fuera del conjunto final de estados tras la migración).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/147-entrega-pago-liberacion-mesa/spec.md` (FR-001 a FR-023),
+`specs/147-entrega-pago-liberacion-mesa/plan.md` (Constitution Check, Principio VI),
+`specs/147-entrega-pago-liberacion-mesa/data-model.md` (§ Migración de datos),
+`specs/147-entrega-pago-liberacion-mesa/research.md` (R1-R8).
+
+**Estado (2026-11-01)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 147).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
