@@ -5395,6 +5395,126 @@ guardas probadas). La deuda residual de `refresh_order_item_discounts` queda reg
 
 ---
 
+### A-150 — [DECISIÓN DE NEGOCIO — spec 141] Inventario, Proveedores y Compras son un único módulo indivisible; «Compras» deja de ser un módulo configurable
+
+**Qué cambia**: el catálogo de módulos que el Super Admin asigna a un plan pasa de tres (Inventario, Compras,
+Promociones) a dos (**Inventario** y **Promociones**). «Inventario» cubre Inventario, Proveedores y Compras. Esto
+reemplaza la decisión 6 de la spec [033](../033-planes-suscripcion-tenant/research.md), que hacía que las 8 rutas
+de compras exigieran **dos** condiciones a la vez (Inventario y un indicador propio `compras_access`). Los planes
+que hoy tienen Inventario sí y Compras no **pasan a incluir Proveedores y Compras** sin revisión individual.
+
+**Por qué cambia**: Proveedores y Compras son parte natural del trabajo con insumos; ofrecerlos por separado
+generaba un módulo comercial que el resto del sistema no respetaba (Proveedores se mostraba en el menú aunque el
+plan no incluyera Inventario; «Compras» era una pestaña, no una opción de menú). Un único módulo evita esa
+distinción y hace posible que la interfaz sea un espejo exacto del plan.
+
+**Quién y cuándo**: equipo de desarrollo, 2026-10-31, en las aclaraciones de la
+spec [141](../141-modulo-inventario-unificado/spec.md) (sesiones del 2026-10-31: «Compras» sigue siendo pestaña de
+Inventario; los planes con Inventario y sin Compras se aceptan tal cual). **PENDIENTE de ratificación con el
+negocio**.
+
+**Funcionalidades afectadas**: planes y su panel de Super Admin, «Mi plan», `GET /plan` y bootstrap, las 8 rutas de
+compras (`/inventory/purchases…`), el menú lateral («Proveedores»), la pestaña «Compras» de Inventario y la vista
+«Nueva compra».
+
+**Riesgo asumido**: (1) un plan con Inventario y sin Compras gana Proveedores y Compras sin haberlos contratado: el
+recuento previo (`group by` de `inventario_access`/`compras_access`/`promociones_access`) se anota antes de migrar
+para que el dueño sepa qué planes cambiaron. (2) La migración **no es reversible sin pérdida**: el `downgrade()`
+recrea `compras_access` igual a `inventario_access`; no se recupera «tenía Inventario sin Compras» (data-model §2 de
+la spec 141). Los datos de inventario, proveedores y compras de los tenants no se tocan.
+
+**Tests afectados**: ninguno con prefijo `"CONGELA comportamiento actual:"` (barrido de la spec 141, research R0).
+Se reescriben `test_plan_module_access.py`, `test_plan_summary.py` y `test_super_admin_plans.py`, que declaran no ser
+characterization tests.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/141-modulo-inventario-unificado/spec.md` (Clarifications, FR-001 a FR-004, FR-019 a FR-021).
+
+**Estado (2026-10-31)**: **IMPLEMENTADA** en la spec 141 (ramas `feat/141-unified-inventory-module` de `pos-backend` y
+`pos-heladeria`, sin commit ni despliegue; migración `30cd5f4a8fd6` verificada contra PostgreSQL real; suites en verde).
+Se implementó **antes** de la ratificación del negocio; sigue **PENDIENTE de ratificación con el negocio**. Si el negocio
+no la ratifica, se revierte la spec 141 (con `alembic downgrade -1` antes de volver a la imagen anterior) y se abre una
+spec aparte; no se revierte en silencio.
+
+---
+
+### A-151 — [DECISIÓN DE NEGOCIO — spec 141] Un mismo código de error, un mismo aviso y una misma conducta ante sesión activa para todos los módulos del plan
+
+**Qué cambia**: hoy el rechazo por módulo no incluido es un 403 de texto plano («Tu plan actual no incluye el módulo
+de …»), sin código ni módulo requerido, y la redirección de una ruta bloqueada vuelve al inicio **sin aviso**. Con la
+spec [141](../141-modulo-inventario-unificado/spec.md) (FR-006 a FR-008, FR-015 a FR-017) **todos** los módulos
+(Inventario y Promociones) comparten:
+
+1. El 403 lleva `{detail, code: "MODULE_NOT_IN_PLAN", module}`; `detail` sigue siendo un texto con la misma
+   redacción.
+2. Aviso único «Esta funcionalidad no está incluida en tu plan», vuelta al inicio y menú actualizado **sin
+   recargar**, también cuando la sesión ya está abierta y el módulo se pierde en ese momento (varias respuestas 403
+   simultáneas dan un solo aviso y una sola redirección).
+3. Entrar por URL directa a una pantalla del módulo muestra el mismo aviso (con **plan vencido** se conserva la vuelta
+   al inicio sin aviso).
+
+**Promociones adopta lo mismo**: hoy su guardia redirige sin aviso. Sus reglas de negocio no cambian.
+
+**Por qué cambia**: sin código el cliente no puede distinguir «módulo no incluido» de otros 403 (rol, límite, plan
+vencido) y la persona queda sin explicación; un mecanismo único evita tener un comportamiento por módulo.
+
+**Quién y cuándo**: equipo de desarrollo, 2026-10-31, en las aclaraciones de la spec 141 (el código y el aviso
+aplican a todos los módulos; un solo aviso con N rechazos). **PENDIENTE de ratificación con el negocio**.
+
+**Funcionalidades afectadas**: todos los endpoints gobernados por módulo (43 de Inventario y 7 de Promociones),
+guardias de ruta del front, un interceptor HTTP global nuevo y el menú. Las cargas de fondo del front a esos
+endpoints (panel de inicio, formulario de producto, grupos de opciones, formulario de adición y Terminal de mesas)
+se condicionan al plan para que el aviso global no expulse a un usuario que no hizo nada.
+
+**Riesgo asumido**: el `code` y el `module` son campos nuevos en un cuerpo existente: los clientes que solo leen
+`detail` no se ven afectados. Una pantalla futura que pida un endpoint del módulo sin condicionarlo al plan
+provocaría un aviso y una vuelta al inicio (mitigado por la regla de revisión del contrato
+`frontend-acceso-modulos.md` §4).
+
+**Tests afectados**: ninguno con prefijo `"CONGELA comportamiento actual:"`.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/141-modulo-inventario-unificado/spec.md` (Clarifications, FR-006 a FR-008, FR-014 a FR-017, SC-003).
+
+**Estado (2026-10-31)**: **IMPLEMENTADA** en la spec 141 (mismas ramas, sin commit ni despliegue): `MODULE_NOT_IN_PLAN`
+en los 43 + 7 endpoints inventariados (`test_module_route_inventory.py`), interceptor y servicio de módulo perdido en el
+frontend, avisos de las guardias, y las 5 cargas de fondo condicionadas al plan; verificada en vivo (un aviso, una
+redirección, menú corregido sin recargar). Sigue **PENDIENTE de ratificación con el negocio**.
+
+---
+
+### A-152 — [DECISIÓN DE NEGOCIO — spec 141] Retirada incompatible de `compras` en `GET /plan`, `GET /bootstrap` y `/super-admin/plans`, sin período de transición
+
+**Qué cambia**: el objeto `modules` de `GET /plan` y de `plan` en `GET /bootstrap` deja de traer la clave `compras`,
+y `PlanCreate`, `PlanUpdate` y `PlanResponse` de `/super-admin/plans` dejan de traer `compras_access` (spec
+[141](../141-modulo-inventario-unificado/spec.md), FR-022). Un campo `compras_access` entrante se **ignora** (no da
+422). La columna `shared.plans.compras_access` se elimina (A-150).
+
+**Por qué cambia**: la clave describía un módulo que ya no existe. Mantenerla «por compatibilidad» obligaría a
+decidir qué significa y a mantener dos fuentes de verdad.
+
+**Quién y cuándo**: equipo de desarrollo, 2026-10-31, en las aclaraciones de la spec 141 (la retirada no tiene
+período de transición). **PENDIENTE de ratificación con el negocio**.
+
+**Funcionalidades afectadas**: `GET /plan`, `GET /bootstrap`, `/super-admin/plans` y su único consumidor conocido,
+`pos-heladeria`.
+
+**Riesgo asumido**: durante un despliegue desordenado, un front viejo no encuentra `modules.compras` y oculta la
+pestaña «Compras» hasta recargar (el front recarga solo al detectar una versión nueva, spec 134). Por eso se
+despliega el backend primero y el frontend inmediatamente después. No se conocen otros consumidores de la API.
+
+**Tests afectados**: ninguno con prefijo `"CONGELA comportamiento actual:"`; `test_plan_summary.py` y
+`test_super_admin_plans.py` se actualizan con la spec 141 como autoridad.
+
+**Clasificación**: DECISIÓN DE NEGOCIO (cambio incompatible de contrato). **Tratamiento acordado**:
+`specs/141-modulo-inventario-unificado/spec.md` (FR-022) y `contracts/planes-api.md`.
+
+**Estado (2026-10-31)**: **IMPLEMENTADA** en la spec 141 (mismas ramas, sin commit ni despliegue): `GET /plan`,
+`GET /bootstrap` y `/super-admin/plans` ya no traen `compras`/`compras_access` (el OpenAPI no contiene la cadena) y un
+`compras_access` entrante se ignora con 2xx. Sigue **PENDIENTE de ratificación con el negocio**.
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
