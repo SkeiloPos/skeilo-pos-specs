@@ -5395,6 +5395,73 @@ guardas probadas). La deuda residual de `refresh_order_item_discounts` queda reg
 
 ---
 
+### A-150 — [DECISIÓN DE NEGOCIO — spec 146] Caja/mostrador y domicilio dejan de nacer en `abierta`; nace columna `payment_status`
+
+**Qué cambia**: dos comportamientos del backend (`pos-backend`), ninguno del frontend:
+
+1. **Toda orden nueva nace en `status="pendiente"`, sin excepción por canal.** Hoy caja/mostrador y
+   domicilio crean la orden directamente en `status="abierta"` (confirmada, con descuento de
+   inventario inmediato), salvo el caso raro `hold_for_payment`. QR ya nacía en `"recibida"`
+   (renombrado a `"pendiente"` por esta misma spec). A partir de esta implementación, los tres
+   canales nacen en `"pendiente"` y la transición `pendiente → abierta` (hoy solo usada por
+   `confirm_order`/`checkout_and_send` del flujo QR) se generaliza también a caja/domicilio.
+2. **El descuento de inventario inmediato de caja/domicilio se mueve al punto de confirmación.**
+   Como consecuencia directa de (1): el descuento que hoy ocurre al crear la orden de
+   caja/domicilio (porque nace ya `"abierta"`) deja de ejecutarse en la creación y pasa a ejecutarse
+   en la transición `pendiente → abierta`, igual que ya ocurre para QR. Esto cambia el **momento**
+   en que el inventario se descuenta para una venta de mostrador — visible para el negocio (reportes
+   de inventario en tiempo real durante el intervalo entre crear y confirmar la orden), no un
+   detalle interno de implementación.
+3. **Columna nueva `CustomerOrder.payment_status`** (`VARCHAR(10)`, `CHECK` en
+   `UNPAID|PAID|PARTIAL`, `server_default='UNPAID'`). No existía ningún campo de pago explícito en
+   el modelo — el pago se infería de `status == "pagada"` y de `OrderPaymentAttempt.status`
+   (específico del comprobante de transferencia QR, no de caja/domicilio). `payment_status` es
+   independiente de `status`: una orden puede estar en `status="pendiente"` con
+   `payment_status="PAID"` si el pago ya se confirmó en el mismo acto de creación (venta de
+   mostrador pagada de inmediato) sin que la orden haya sido atendida/confirmada operativamente.
+
+**Por qué cambia**: autorizado por `specs/146-ordenes-estado-pendiente/spec.md` (FR-001, FR-002) y
+por las "Clarifications de planificación" de `specs/146-ordenes-estado-pendiente/plan.md` (sesión
+2026-11-01): unificar el estado inicial entre canales era el propósito explícito de la User Story 1
+del spec (dejarlo limitado a QR reproduciría la misma inconsistencia entre canales que el spec
+busca resolver); `payment_status` se modela como columna real en vez de derivarse en el serializer
+porque no existe hoy ningún lugar donde representar un pago parcial/mixto en la creación. Ver
+`specs/146-ordenes-estado-pendiente/research.md` secciones 3 y 4 y `data-model.md`.
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de planificación de la spec
+146, 2026-11-01, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: creación de orden de caja/mostrador y domicilio
+(`app/api/v1/orders/service.py::create_order`), confirmación/checkout
+(`app/api/v1/orders/checkout.py`), filtros de órdenes no terminales en caja
+(`app/api/v1/cash/active_orders.py`) y en sesiones de mesa
+(`app/api/v1/table_sessions/service.py`); el flujo QR (`app/api/v1/cart/service.py`) solo cambia el
+literal de `"recibida"` a `"pendiente"`, sin cambio de comportamiento (ya nacía confirmado después,
+no antes). No toca facturación ni el significado histórico de órdenes ya `"pagada"`/`"cancelada"`.
+
+**Riesgo asumido**: el intervalo entre crear una orden de mostrador/domicilio y confirmarla queda,
+por primera vez, con inventario sin descontar — una cancelación en ese intervalo ya no requiere
+revertir un descuento (mejora), pero un reporte de inventario leído exactamente en ese intervalo
+puede mostrar unidades disponibles que ya están comprometidas por una orden `"pendiente"` sin
+confirmar. Aceptado como consecuencia directa de unificar el criterio entre canales, igual que ya
+ocurría para QR.
+
+**Tests afectados**: characterization tests que fijan hoy el comportamiento de creación en
+`"abierta"`/`"recibida"` para caja/domicilio/QR (`test_orders_service.py`,
+`test_cart_single_active_order.py`) se actualizan explícitamente citando esta entrada (Principio
+III), no en silencio. Characterization test nuevo para el invariante ya existente de ítems
+(`OrderItem.estado_cocina` nace `"pendiente"` para todo canal).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/146-ordenes-estado-pendiente/spec.md` (FR-001 a FR-010),
+`specs/146-ordenes-estado-pendiente/plan.md` (Clarifications de planificación),
+`specs/146-ordenes-estado-pendiente/data-model.md` (§ Migración de datos),
+`specs/146-ordenes-estado-pendiente/research.md` (secciones 3 y 4).
+
+**Estado (2026-11-01)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 146).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que
