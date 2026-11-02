@@ -57,36 +57,36 @@ quedaron redactadas antes de la entrevista** — documentan el estado del análi
 y esta tabla es la capa de resultado que las actualiza. Ante cualquier lectura, esta tabla
 prevalece sobre el campo "Decisión de negocio pendiente" de la entrada correspondiente.
 
-| ID                | Antes                                        | Después de la entrevista                                                                                                                                                       | Detalle |
-| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| A-01              | BUG A SECAS / BUG HISTÓRICO CON DEPENDIENTES | Sin cambio de clasificación — riesgo confirmado **latente, no activo** (no usan mesas fusionadas)                                                                              | P1      |
-| A-04              | BUG HISTÓRICO CON DEPENDIENTES               | Reforzada — **testimonio de negocio confirma merma real hace ~15 días** en sabores/toppings; sube prioridad                                                                    | P4      |
-| A-05              | INTENCIONAL [PROTEGIDA], decisión pendiente  | Decisión pendiente **cerrada**: catálogo nunca se depuró, `STRICT_OPTION_SELECTION` debe seguir en `False`                                                                     | P18     |
-| A-09              | PENDIENTE                                    | Mitigado operativamente (P6) — **reabierta 2026-08-18**: corregir en modernización pese a la mitigación, ver spec 023                                                          | P6      |
-| A-11              | ACCIDENTAL, tope a definir                   | Tratamiento **redefinido y más estricto**: el cajero no debe poder aplicar descuento manual en absoluto (no solo un tope)                                                      | P5      |
-| A-12              | ACCIDENTAL, alcance desconocido              | **Alcance estimado**: 6-20 productos activos sin receta configurada; sube prioridad                                                                                            | P8      |
-| A-13              | PENDIENTE                                    | **ACCIDENTAL confirmado** — insumos inactivos bajo mínimo deben seguir en las alertas                                                                                          | P9      |
-| A-14              | BUG A SECAS, prioridad alta                  | **Baja de prioridad** — el consecutivo se reinicia cada año (verificar mecanismo, ver nota abajo y nueva entrada **A-49**)                                                     | P10     |
-| A-14a             | INTENCIONAL [PROTEGIDA], decisión pendiente  | `pay_order` legado confirmado **sin uso real** — lo que el negocio usa es la cuenta dividida (`split`)                                                                         | P11     |
-| A-15              | INTENCIONAL [PROTEGIDA], decisión pendiente  | Decisión pendiente **cerrada**: sin ventana de exposición, empezaron a usarla después del blindaje                                                                             | P12     |
-| A-17              | ACCIDENTAL/PENDIENTE                         | Reparto-vs-cierre **mitigado operativamente** (una persona por mesa a la vez)                                                                                                  | P17     |
-| A-18              | PENDIENTE                                    | **Cerrada sin impacto** — nunca hubo cuentas con rol STAFF                                                                                                                     | P13     |
+| ID                | Antes                                        | Después de la entrevista                                                                                                                                                           | Detalle |
+| ----------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| A-01              | BUG A SECAS / BUG HISTÓRICO CON DEPENDIENTES | Sin cambio de clasificación — riesgo confirmado **latente, no activo** (no usan mesas fusionadas)                                                                                  | P1      |
+| A-04              | BUG HISTÓRICO CON DEPENDIENTES               | Reforzada — **testimonio de negocio confirma merma real hace ~15 días** en sabores/toppings; sube prioridad                                                                        | P4      |
+| A-05              | INTENCIONAL [PROTEGIDA], decisión pendiente  | Decisión pendiente **cerrada**: catálogo nunca se depuró, `STRICT_OPTION_SELECTION` debe seguir en `False`                                                                         | P18     |
+| A-09              | PENDIENTE                                    | Mitigado operativamente (P6) — **reabierta 2026-08-18**: corregir en modernización pese a la mitigación, ver spec 023                                                              | P6      |
+| A-11              | ACCIDENTAL, tope a definir                   | Tratamiento **redefinido y más estricto**: el cajero no debe poder aplicar descuento manual en absoluto (no solo un tope)                                                          | P5      |
+| A-12              | ACCIDENTAL, alcance desconocido              | **Alcance estimado**: 6-20 productos activos sin receta configurada; sube prioridad                                                                                                | P8      |
+| A-13              | PENDIENTE                                    | **ACCIDENTAL confirmado** — insumos inactivos bajo mínimo deben seguir en las alertas                                                                                              | P9      |
+| A-14              | BUG A SECAS, prioridad alta                  | **Baja de prioridad** — el consecutivo se reinicia cada año (verificar mecanismo, ver nota abajo y nueva entrada **A-49**)                                                         | P10     |
+| A-14a             | INTENCIONAL [PROTEGIDA], decisión pendiente  | `pay_order` legado confirmado **sin uso real** — lo que el negocio usa es la cuenta dividida (`split`)                                                                             | P11     |
+| A-15              | INTENCIONAL [PROTEGIDA], decisión pendiente  | Decisión pendiente **cerrada**: sin ventana de exposición, empezaron a usarla después del blindaje                                                                                 | P12     |
+| A-17              | ACCIDENTAL/PENDIENTE                         | Reparto-vs-cierre **mitigado operativamente** (una persona por mesa a la vez)                                                                                                      | P17     |
+| A-18              | PENDIENTE                                    | **Cerrada sin impacto** — nunca hubo cuentas con rol STAFF                                                                                                                         | P13     |
 | A-20 / RN-CASH-09 | DUDOSA                                       | ~~**Mitigado** — la pantalla siempre exige el conteo antes de cerrar~~ **Superada por A-130/A-131 (spec 121)**: el servidor calcula el contado y ya no existe el cierre sin conteo | P14     |
-| A-20 / RN-CASH-13 | DUDOSA                                       | Sigue **PENDIENTE** — sin respuesta concluyente                                                                                                                                | P14     |
-| A-20 / RN-CASH-17 | DUDOSA                                       | **Requisito de negocio nuevo**: snapshot inmutable del cierre + vista de ajustes separada (más estricto que "congelar" o "recalcular")                                         | P14     |
-| A-21              | PENDIENTE                                    | **INTENCIONAL confirmado** — localStorage es el diseño definitivo, no prioridad la cookie httpOnly                                                                             | P15     |
-| A-27              | ACCIDENTAL                                   | Reforzada — hay revisión manual hoy, **el negocio pide explícitamente pasar a pruebas automáticas**                                                                            | P24     |
-| A-29              | PENDIENTE                                    | ~~Sigue PENDIENTE en código~~ **RESUELTA por la spec 063** (2026-08-31): se persiste `applied_promotions` (agregado + lista) en `sales`/`invoices`/`customer_orders`; ver A-64 | P21     |
-| A-31              | DUDOSA, candidato a retirar                  | **Cambia de tratamiento**: candidato a completar la migración (necesitan conversión litros↔onzas para el granizado)                                                            | P19     |
-| A-33              | PENDIENTE                                    | **INTENCIONAL confirmado** — el bloqueo actual es correcto                                                                                                                     | P22     |
-| A-35 / RN-INV-11  | DUDOSA                                       | **Requisito confirmado**: motivo de ajuste debe ser obligatorio                                                                                                                | P23     |
-| A-35 / RN-INV-17  | DUDOSA                                       | **INTENCIONAL confirmado** — "último costo de compra" es el comportamiento deseado                                                                                             | P23     |
-| A-41              | INTENCIONAL, con reserva                     | Reserva **cerrada** — tax=0 es política fiscal deliberada y definitiva                                                                                                         | P2      |
-| A-42 (Horarios)   | PENDIENTE                                    | **Cerrada** — retiro fue decisión de producto deliberada; habilita migración de borrado de `business_hours`                                                                    | P25     |
-| A-42 (Auditoría)  | PENDIENTE                                    | Confirma que **nadie consulta `audit_logs` hoy** — decisión de negocio pendiente sobre si mantenerlo                                                                           | P25     |
-| A-46              | PENDIENTE                                    | **Cerrada sin urgencia** — sin planes de expansión a otra zona horaria                                                                                                         | P26     |
-| A-48              | PENDIENTE                                    | **INTENCIONAL confirmado** — fusión de KDS y terminal fue decisión operativa deliberada                                                                                        | P28     |
-| memoria#1 (DIAN)  | Pregunta abierta                             | **Cerrada** — sin obligación regulatoria conocida hoy                                                                                                                          | P3      |
+| A-20 / RN-CASH-13 | DUDOSA                                       | Sigue **PENDIENTE** — sin respuesta concluyente                                                                                                                                    | P14     |
+| A-20 / RN-CASH-17 | DUDOSA                                       | **Requisito de negocio nuevo**: snapshot inmutable del cierre + vista de ajustes separada (más estricto que "congelar" o "recalcular")                                             | P14     |
+| A-21              | PENDIENTE                                    | **INTENCIONAL confirmado** — localStorage es el diseño definitivo, no prioridad la cookie httpOnly                                                                                 | P15     |
+| A-27              | ACCIDENTAL                                   | Reforzada — hay revisión manual hoy, **el negocio pide explícitamente pasar a pruebas automáticas**                                                                                | P24     |
+| A-29              | PENDIENTE                                    | ~~Sigue PENDIENTE en código~~ **RESUELTA por la spec 063** (2026-08-31): se persiste `applied_promotions` (agregado + lista) en `sales`/`invoices`/`customer_orders`; ver A-64     | P21     |
+| A-31              | DUDOSA, candidato a retirar                  | **Cambia de tratamiento**: candidato a completar la migración (necesitan conversión litros↔onzas para el granizado)                                                                | P19     |
+| A-33              | PENDIENTE                                    | **INTENCIONAL confirmado** — el bloqueo actual es correcto                                                                                                                         | P22     |
+| A-35 / RN-INV-11  | DUDOSA                                       | **Requisito confirmado**: motivo de ajuste debe ser obligatorio                                                                                                                    | P23     |
+| A-35 / RN-INV-17  | DUDOSA                                       | **INTENCIONAL confirmado** — "último costo de compra" es el comportamiento deseado                                                                                                 | P23     |
+| A-41              | INTENCIONAL, con reserva                     | Reserva **cerrada** — tax=0 es política fiscal deliberada y definitiva                                                                                                             | P2      |
+| A-42 (Horarios)   | PENDIENTE                                    | **Cerrada** — retiro fue decisión de producto deliberada; habilita migración de borrado de `business_hours`                                                                        | P25     |
+| A-42 (Auditoría)  | PENDIENTE                                    | Confirma que **nadie consulta `audit_logs` hoy** — decisión de negocio pendiente sobre si mantenerlo                                                                               | P25     |
+| A-46              | PENDIENTE                                    | **Cerrada sin urgencia** — sin planes de expansión a otra zona horaria                                                                                                             | P26     |
+| A-48              | PENDIENTE                                    | **INTENCIONAL confirmado** — fusión de KDS y terminal fue decisión operativa deliberada                                                                                            | P28     |
+| memoria#1 (DIAN)  | Pregunta abierta                             | **Cerrada** — sin obligación regulatoria conocida hoy                                                                                                                              | P3      |
 
 **Siguen sin decidir tras la primera ronda** (5): A-06 (P7), la sub-pregunta de RN-CASH-13
 dentro de A-20 (P14), A-16 (P16), A-26 (P20), A-47 (P27). **Las 5 se cerraron el mismo día en
@@ -4199,7 +4199,7 @@ específica, es el camino feliz completo de **toda** venta de mostrador.
   menos un ítem devuelve 500.
   **Tratamiento acordado**: corrección mínima de una línea, sin cambio de comportamiento ni de
   contrato — renombrar el import a un alias que no colisione (`from app.api.v1.orders import
-  checkout as orders_checkout`) y usar `orders_checkout.auto_discount(...)` en la línea 345. Se
+checkout as orders_checkout`) y usar `orders_checkout.auto_discount(...)` en la línea 345. Se
   aplica como parte de la implementación de `specs/117-adiciones-cantidad-total-linea` (T013 la
   necesita para poder escribir su test), pero es un fix de bug independiente de esa spec, no una
   decisión de negocio ni comportamiento nuevo — no reabre ningún principio de compatibilidad con
@@ -4853,8 +4853,7 @@ fallo sobre ese endpoint.
 ### A-140 — [DECISIÓN DE NEGOCIO — spec 131] Se retira "Agregar adición" por línea y el badge "Modificada" (spec 123) del detalle de pedido
 
 **Qué cambia**: `pos-order-panel.component.ts` deja de mostrar, por cada línea de un pedido ya
-facturado, el selector dedicado "Agregar adición" y el badge "Modificada" que introdujo la spec
-123. Agregar una opción/adición extra a un producto ya facturado deja de hacerse mediante ese
+facturado, el selector dedicado "Agregar adición" y el badge "Modificada" que introdujo la spec 123. Agregar una opción/adición extra a un producto ya facturado deja de hacerse mediante ese
 selector específico y pasa a cubrirse exclusivamente agregando la adición como un
 producto/línea **nueva** del pedido, a través del flujo normal de "Agregar producto" del catálogo
 embebido (`pos-catalog-drawer.component.ts`) — el mismo camino que ya existe hoy para cualquier
@@ -5050,7 +5049,7 @@ detalle", nunca los tres paneles a la vez).
 **Qué cambia**: `approve_payment_attempt` (`pos-backend/app/api/v1/orders/checkout.py`) deja de
 rechazar con `409` ("El intento no tiene comprobante todavía") un intento de transferencia o la
 porción por transferencia de un pago mixto que no tiene `receipt_file_url`. El comprobante pasa
-de ser una condición bloqueante de aprobación a una evidencia opcional que *solo* el cajero puede
+de ser una condición bloqueante de aprobación a una evidencia opcional que _solo_ el cajero puede
 adjuntar en el momento de confirmar (nuevo campo opcional en `PaymentAttemptApproveIn`), nunca el
 comensal desde el flujo QR. En simetría, `submit_cart` y `create_payment_attempt`
 (`pos-backend/app/api/v1/cart/service.py`) dejan de exigir `receipt_file_url` para crear un
@@ -5121,7 +5120,7 @@ sin comprobante, citando esta entrada (Principio III); characterization tests nu
 2. **Recarga automática por versión nueva.** La aplicación comprueba si hay una versión nueva al
    arrancar y al volver a primer plano, y la aplica recargando por su cuenta, **solo en un momento
    seguro** (sin escrituras en vuelo, sin modales ni formularios editados, sin borrador sin enviar
-   en la Terminal). Hoy esperaba a que la persona recargara. La recarga por *alteración* sigue
+   en la Terminal). Hoy esperaba a que la persona recargara. La recarga por _alteración_ sigue
    siendo siempre una acción de la persona (nunca automática).
 3. **Traducción automática bloqueada.** Se declara `lang="es"` con `translate="no"` y el meta
    `google/notranslate`: un comensal que no lee español ve el menú solo en español. Hoy el
@@ -5130,7 +5129,7 @@ sin comprobante, citando esta entrada (Principio III); characterization tests nu
 **Por qué cambia**: autorizado por `specs/134-bloqueo-traduccion-automatica/spec.md` (Clarifications
 de la sesión 2026-10-24 y "Impacto y compatibilidad"). La traducción deja la pantalla desfasada del
 estado real **sin ningún error** (cantidades, totales, contadores y textos de botones): se midió un
-modal que mostraba *Cantidad 1 / Agregar $ 4.000* cuando lo real era 3 unidades y $ 12.000, y una
+modal que mostraba _Cantidad 1 / Agregar $ 4.000_ cuando lo real era 3 unidades y $ 12.000, y una
 tarjeta de ventas que mostraba $ 367.500 en las tres métricas. La persona actúa a ciegas y puede
 pedir o cobrar algo distinto de lo que ve. La decisión de producto es **bloquear** la traducción, no
 hacerla funcionar; el bloqueo depende de que el navegador lo respete (algunas extensiones lo
@@ -5512,6 +5511,73 @@ despliega el backend primero y el frontend inmediatamente después. No se conoce
 **Estado (2026-10-31)**: **IMPLEMENTADA** en la spec 141 (mismas ramas, sin commit ni despliegue): `GET /plan`,
 `GET /bootstrap` y `/super-admin/plans` ya no traen `compras`/`compras_access` (el OpenAPI no contiene la cadena) y un
 `compras_access` entrante se ignora con 2xx. Sigue **PENDIENTE de ratificación con el negocio**.
+
+---
+
+### A-150 — [DECISIÓN DE NEGOCIO — spec 146] Caja/mostrador y domicilio dejan de nacer en `abierta`; nace columna `payment_status`
+
+**Qué cambia**: dos comportamientos del backend (`pos-backend`), ninguno del frontend:
+
+1. **Toda orden nueva nace en `status="pendiente"`, sin excepción por canal.** Hoy caja/mostrador y
+   domicilio crean la orden directamente en `status="abierta"` (confirmada, con descuento de
+   inventario inmediato), salvo el caso raro `hold_for_payment`. QR ya nacía en `"recibida"`
+   (renombrado a `"pendiente"` por esta misma spec). A partir de esta implementación, los tres
+   canales nacen en `"pendiente"` y la transición `pendiente → abierta` (hoy solo usada por
+   `confirm_order`/`checkout_and_send` del flujo QR) se generaliza también a caja/domicilio.
+2. **El descuento de inventario inmediato de caja/domicilio se mueve al punto de confirmación.**
+   Como consecuencia directa de (1): el descuento que hoy ocurre al crear la orden de
+   caja/domicilio (porque nace ya `"abierta"`) deja de ejecutarse en la creación y pasa a ejecutarse
+   en la transición `pendiente → abierta`, igual que ya ocurre para QR. Esto cambia el **momento**
+   en que el inventario se descuenta para una venta de mostrador — visible para el negocio (reportes
+   de inventario en tiempo real durante el intervalo entre crear y confirmar la orden), no un
+   detalle interno de implementación.
+3. **Columna nueva `CustomerOrder.payment_status`** (`VARCHAR(10)`, `CHECK` en
+   `UNPAID|PAID|PARTIAL`, `server_default='UNPAID'`). No existía ningún campo de pago explícito en
+   el modelo — el pago se infería de `status == "pagada"` y de `OrderPaymentAttempt.status`
+   (específico del comprobante de transferencia QR, no de caja/domicilio). `payment_status` es
+   independiente de `status`: una orden puede estar en `status="pendiente"` con
+   `payment_status="PAID"` si el pago ya se confirmó en el mismo acto de creación (venta de
+   mostrador pagada de inmediato) sin que la orden haya sido atendida/confirmada operativamente.
+
+**Por qué cambia**: autorizado por `specs/146-ordenes-estado-pendiente/spec.md` (FR-001, FR-002) y
+por las "Clarifications de planificación" de `specs/146-ordenes-estado-pendiente/plan.md` (sesión
+2026-11-01): unificar el estado inicial entre canales era el propósito explícito de la User Story 1
+del spec (dejarlo limitado a QR reproduciría la misma inconsistencia entre canales que el spec
+busca resolver); `payment_status` se modela como columna real en vez de derivarse en el serializer
+porque no existe hoy ningún lugar donde representar un pago parcial/mixto en la creación. Ver
+`specs/146-ordenes-estado-pendiente/research.md` secciones 3 y 4 y `data-model.md`.
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de planificación de la spec
+146, 2026-11-01, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: creación de orden de caja/mostrador y domicilio
+(`app/api/v1/orders/service.py::create_order`), confirmación/checkout
+(`app/api/v1/orders/checkout.py`), filtros de órdenes no terminales en caja
+(`app/api/v1/cash/active_orders.py`) y en sesiones de mesa
+(`app/api/v1/table_sessions/service.py`); el flujo QR (`app/api/v1/cart/service.py`) solo cambia el
+literal de `"recibida"` a `"pendiente"`, sin cambio de comportamiento (ya nacía confirmado después,
+no antes). No toca facturación ni el significado histórico de órdenes ya `"pagada"`/`"cancelada"`.
+
+**Riesgo asumido**: el intervalo entre crear una orden de mostrador/domicilio y confirmarla queda,
+por primera vez, con inventario sin descontar — una cancelación en ese intervalo ya no requiere
+revertir un descuento (mejora), pero un reporte de inventario leído exactamente en ese intervalo
+puede mostrar unidades disponibles que ya están comprometidas por una orden `"pendiente"` sin
+confirmar. Aceptado como consecuencia directa de unificar el criterio entre canales, igual que ya
+ocurría para QR.
+
+**Tests afectados**: characterization tests que fijan hoy el comportamiento de creación en
+`"abierta"`/`"recibida"` para caja/domicilio/QR (`test_orders_service.py`,
+`test_cart_single_active_order.py`) se actualizan explícitamente citando esta entrada (Principio
+III), no en silencio. Characterization test nuevo para el invariante ya existente de ítems
+(`OrderItem.estado_cocina` nace `"pendiente"` para todo canal).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/146-ordenes-estado-pendiente/spec.md` (FR-001 a FR-010),
+`specs/146-ordenes-estado-pendiente/plan.md` (Clarifications de planificación),
+`specs/146-ordenes-estado-pendiente/data-model.md` (§ Migración de datos),
+`specs/146-ordenes-estado-pendiente/research.md` (secciones 3 y 4).
+
+**Estado (2026-11-01)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 146).
 
 ---
 
