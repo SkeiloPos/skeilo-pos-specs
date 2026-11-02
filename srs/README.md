@@ -136,7 +136,7 @@ graph TB
 
 - Aislamiento multi-tenant por esquema de PostgreSQL (nunca por columna `tenant_id` filtrada en aplicación como único mecanismo): cada tenant tiene su propio `schema_translate_map` — ver 3.4.
 - Todo endpoint multi-tenant exige la cabecera `x-tenant-host` salvo las rutas explícitamente públicas (`menu`, `cart`, el flujo de comensal, `health`) — ver 3.1.
-- El acceso a varios módulos está condicionado al plan contratado por el tenant (`inventario`, `compras`, `promociones`) y a si el plan venció, verificado en tiempo real contra `app/core/plan_limits.py` — ver 3.4 y `inventario-backend.md` § `plan`.
+- El acceso a varios módulos está condicionado al plan contratado por el tenant (`inventario` —que incluye Proveedores y Compras— y `promociones`; «Compras» ya no es un módulo aparte desde la spec 141) y a si el plan venció, verificado en tiempo real contra `app/core/plan_limits.py` — ver 3.4 y `inventario-backend.md` § `plan`.
 - Límites de recursos por plan (mesas, cajas, usuarios, productos, métodos de pago activos) se hacen cumplir con bloqueo de fila (`SELECT ... FOR UPDATE`) para que dos altas concurrentes no excedan el cupo — ver 3.5.
 
 ### 2.5 Supuestos y dependencias
@@ -1163,7 +1163,7 @@ _Pendiente (T036-T041 — un bloque por grupo backend G1-G6)._
 - **Trazabilidad**: Endpoint(s): `DELETE /api/v1/promotions/{id}`; Pantalla(s): `/dashboard/promotions` ("Eliminar", solo visible si no está `active`); Entidad(es): `Promotion`, `PromotionRule`, `PromotionVariant`.
 - **Atributos IEEE 830**: Correcto ✅ · Inequívoco ✅ · Completo ✅ · Consistente ❌ (es la única mutación del módulo que permite actuar sobre una promoción `active` sin guarda de estado, inconsistente con `update`/`update_shape`/`status`, aunque la UI nunca ofrece el botón en ese caso) · Jerarquizado ✅ · Verificable ✅ · Modificable ✅ · Trazable ✅
 
-##### `inventory` (router completo exige el módulo "inventario"; `/purchases` exige además "compras")
+##### `inventory` (router completo exige el módulo "inventario", que incluye Proveedores y Compras; ya no existe un módulo "compras" aparte — spec 141)
 
 #### RF-inventory-001: Listar insumos
 
@@ -1304,10 +1304,10 @@ _Pendiente (T036-T041 — un bloque por grupo backend G1-G6)._
 
 - **Enunciado**: El sistema deberá listar, paginadas, las compras registradas (directas y órdenes de compra) del tenant.
 - **Actor**: Admin, Cajero, Mesero
-- **Precondiciones**: plan con módulos "inventario" **y** "compras" [CÓDIGO: pos-backend/app/api/v1/inventory/router.py:202-205]
+- **Precondiciones**: plan con el módulo "inventario" (que incluye Compras; sin indicador propio, spec 141) [CÓDIGO: pos-backend/app/api/v1/inventory/router.py:38-41]
 - **Salidas**: `Page[PurchaseResponse]`, con `items` anidados, ordenado por `purchased_at desc` [CÓDIGO: pos-backend/app/api/v1/inventory/router.py:212-213]
 - **Reglas de negocio**: ninguna adicional de rol — ver H-06
-- **Criterio de aceptación**: **Dado** un plan sin el módulo "compras", **cuando** se listan, **entonces** la respuesta es `403` aunque el tenant sí tenga "inventario" [CÓDIGO: pos-backend/app/api/v1/inventory/router.py:202-205].
+- **Criterio de aceptación**: **Dado** un plan sin el módulo "inventario", **cuando** se listan, **entonces** la respuesta es `403` con `{detail, code: "MODULE_NOT_IN_PLAN", module: "inventario"}`; **dado** un plan con "inventario", **entonces** la respuesta es `200`, sin exigir ningún indicador adicional de "compras" [CÓDIGO: pos-backend/app/api/v1/inventory/router.py:38-41; pos-backend/app/core/plan_limits.py:139-155].
 - **Prioridad**: Alta.
 - **Trazabilidad**: Endpoint(s): `GET /api/v1/inventory/purchases`; Pantalla(s): `/dashboard/inventario` (pestaña "Compras"); Entidad(es): `Purchase`, `PurchaseItem`.
 - **Atributos IEEE 830**: Correcto ✅ · Inequívoco ✅ · Completo ✅ · Consistente ❌ (ver H-06) · Jerarquizado ✅ · Verificable ✅ · Modificable ✅ · Trazable ✅

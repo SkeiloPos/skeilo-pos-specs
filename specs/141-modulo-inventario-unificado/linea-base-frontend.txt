@@ -1,0 +1,17 @@
+src/app/app.spec.ts > App > should create the app
+src/app/app.spec.ts > App > should render title
+src/app/core/guards/password-change.guard.spec.ts > passwordChangeGuard > redirects to /change-password when a change is required
+src/app/core/services/auth.service.spec.ts > AuthService.login > clears mustChangePassword after a successful password change
+src/app/core/services/menu.service.spec.ts > MenuService — la terminal gana la condición, ningún importe (spec 066) > NO mapea `discounted_price` ni `discount_kind`: el modal sigue mostrando $8.000 (FR-017)
+src/app/modules/super-admin/services/tenant.service.spec.ts > TenantService > creates a tenant with the user payload via POST /super-admin/tenants
+src/app/modules/super-admin/services/tenant.service.spec.ts > TenantService > maps a FastAPI 422 (detail as array) to a readable message
+src/app/modules/super-admin/services/tenant.service.spec.ts > TenantService > maps a string detail error
+src/app/modules/tables/components/bill-summary.component.spec.ts > BillSummaryComponent — ícono de domicilio (spec 082) > ya no renderiza el ícono de domicilio como SVG artesanal
+src/app/modules/tables/components/pos-checkout-panel.component.spec.ts > PosCheckoutPanelComponent — modo terminal-pos > T032: ofrece "Imprimir Pre-cuenta" cuando hay cuenta de sesión
+src/app/modules/tables/components/pos-order-panel.component.spec.ts > PosOrderPanelComponent — reparto de alto: lista de productos sin scroll propio (spec 078, US4; hotfix posterior) > "Marcar pedido listo" (en la cabecera, a pedido del usuario) queda shrink-0, fuera de la lista scrolleable (FR-023)
+src/app/modules/tables/components/pos-order-panel.component.spec.ts > PosOrderPanelComponent — sin resumen de totales (spec 049) > conserva "Marcar pedido listo" fuera del contenedor de totales retirado
+src/app/modules/tables/pages/manual-order-page.component.spec.ts > ManualOrderPageComponent — pestaña "Promociones" (spec 115) > T038: agregar desde la categoría original (no "Promociones") deja la línea en cantidad 1
+src/app/modules/tables/pages/manual-order-page.component.spec.ts > ManualOrderPageComponent — pestaña "Promociones" (spec 115) > T039: encontrar el producto con el buscador (sin pasar por "Promociones") deja la línea en cantidad 1
+src/app/modules/tables/pages/manual-order-page.component.spec.ts > ManualOrderPageComponent — pestaña "Promociones" (spec 115) > bugfix: reabrir el modal para el mismo producto arranca sin las adiciones de la línea anterior (no las hereda al crear una línea hermana)
+src/app/modules/tables/services/pos-terminal.store.spec.ts > PosTerminalStore — no mezclar paquete con suelto en la misma línea (A-134) > saveOrder() con dos líneas hermanas hace dos llamadas a addOrderItems, una por línea
+src/app/shared/date-usage.guard.spec.ts > guarda de uso de fechas (spec 138) > ningún fuente usa la fecha/hora del navegador fuera del módulo único y de las excepciones documentadas

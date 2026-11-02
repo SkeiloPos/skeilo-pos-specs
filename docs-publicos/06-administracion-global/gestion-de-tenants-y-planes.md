@@ -12,7 +12,7 @@ plataforma. Esta función resuelve dos problemas de negocio conectados entre sí
 un negocio nuevo en la plataforma, y cómo se decide —de forma administrativa, sin que medie ningún
 cobro automático— qué puede hacer cada negocio según el plan de suscripción que tiene asignado
 (cuántas mesas, cajas, usuarios, productos o métodos de pago puede tener activos, y si tiene
-acceso a módulos como inventario, compras o promociones).
+acceso a módulos como inventario —que incluye proveedores y compras— o promociones).
 
 ## Roles que pueden usar esta función
 
@@ -33,8 +33,10 @@ acceso a módulos como inventario, compras o promociones).
    ninguno adecuado, el Super Admin crea uno indicando su nombre, una descripción opcional, el
    límite de cada recurso que gobierna (mesas, cajas, usuarios, productos y métodos de pago
    activos simultáneamente —cualquiera de ellos puede marcarse como "ilimitado"—), si el plan
-   incluye acceso a los módulos de inventario, compras y promociones, y, de forma opcional, un
-   precio de referencia mensual y/o uno anual.
+   incluye acceso a los módulos de inventario (que cubre también proveedores y compras) y de
+   promociones, y, de forma opcional, un precio de referencia mensual y/o uno anual. Si más adelante
+   le quita «Inventario» a un plan que ya existe, el panel pide una confirmación antes de guardar
+   («Los negocios con este plan perderán Inventario, Proveedores y Compras de inmediato»).
 3. El Super Admin abre la sección de gestión de negocios y comienza el alta de uno nuevo,
    diligenciando el nombre del negocio, el subdominio único con el que ese negocio accederá al
    sistema, la **zona horaria del negocio** y los datos de la cuenta de su primer administrador
@@ -59,7 +61,7 @@ acceso a módulos como inventario, compras o promociones).
 7. Desde el primer momento, el negocio nuevo opera bajo las reglas del plan asignado: puede crear
    mesas, cajas, usuarios, productos y métodos de pago activos hasta el límite configurado (o sin
    tope si el plan los marca como "ilimitado"), y en su navegación solo aparecen los módulos de
-   inventario, compras y promociones que el plan incluya.
+   inventario (con proveedores y compras) y promociones que el plan incluya.
 8. En cualquier momento posterior, el Super Admin puede volver a la gestión de negocios para
    cambiar el plan vigente de uno de ellos (por ejemplo, subirlo de un plan "Básico" a uno "Pro")
    o renovar su ciclo de facturación actual; el cambio rige de inmediato, sin que el Administrador
@@ -83,9 +85,11 @@ acceso a módulos como inventario, compras o promociones).
   un ciclo para el que el plan elegido no tiene un precio de referencia definido, el sistema
   rechaza esa combinación hasta que se eligió un ciclo con precio definido en ese plan (spec
   033-planes-suscripcion-tenant).
-- Un plan puede definir hasta ocho características: cinco límites numéricos (mesas, cajas,
-  usuarios, productos y métodos de pago activos simultáneamente) y tres accesos de módulo
-  (inventario, compras, promociones). Cualquier característica que el Super Admin no configure
+- Un plan puede definir hasta siete características: cinco límites numéricos (mesas, cajas,
+  usuarios, productos y métodos de pago activos simultáneamente) y dos accesos de módulo
+  (inventario y promociones). «Inventario» es un solo módulo que incluye Inventario, Proveedores y
+  Compras: no se pueden asignar por separado (spec 141-modulo-inventario-unificado). Cualquier
+  característica que el Super Admin no configure
   explícitamente se trata, por defecto, como bloqueada: límite en cero o acceso denegado, según el
   tipo (spec 033-planes-suscripcion-tenant; verificado también contra el modelo de datos real,
   donde cada límite sin configurar queda en cero y cada acceso de módulo sin configurar queda en
@@ -101,9 +105,13 @@ acceso a módulos como inventario, compras o promociones).
   conservan sin cambios; el negocio solo queda bloqueado para crear recursos nuevos de ese tipo
   hasta que vuelva a estar por debajo del nuevo límite (spec 033-planes-suscripcion-tenant).
 - Si el Super Admin le retira a un negocio el acceso a un módulo que ya tenía datos cargados
-  (inventario, compras o promociones), ese módulo queda completamente inaccesible —ni siquiera en
-  modo de solo consulta— hasta que se le reasigne el acceso; los datos ya cargados no se eliminan
-  (spec 033-planes-suscripcion-tenant).
+  (inventario —con proveedores y compras— o promociones), ese módulo queda completamente
+  inaccesible —ni siquiera en modo de solo consulta— hasta que se le reasigne el acceso; los datos
+  ya cargados no se eliminan (spec 033-planes-suscripcion-tenant). Si quien tiene la sesión abierta
+  intenta una acción del módulo en ese momento, la aplicación muestra un único aviso («Esta
+  funcionalidad no está incluida en tu plan»), lo lleva al inicio y actualiza el menú sin recargar;
+  entrar por la dirección de una pantalla del módulo produce el mismo aviso (spec
+  141-modulo-inventario-unificado).
 - Cuando la fecha de vencimiento de la asignación de un negocio se cumple sin que el Super Admin
   la renueve, el sistema bloquea automáticamente, desde ese momento, la creación de recursos
   nuevos y el acceso a los módulos del plan, con el mismo mecanismo y el mismo tipo de aviso que
