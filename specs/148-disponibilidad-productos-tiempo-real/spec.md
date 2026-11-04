@@ -4,7 +4,10 @@
 
 **Created**: 2026-11-02
 
-**Status**: Draft
+**Status**: Implementada (2026-11-02) — ramas `feat/148-product-availability-realtime` de
+`pos-backend` (2163/2163 tests, 0 regresiones) y `pos-heladeria` (0 regresiones nuevas frente a la
+línea base), sin commit ni despliegue. Ver `plan.md` §Estado de implementación y
+`checklists/baseline-suites.md`.
 
 **Input**: User description: "Implementar sincronización en tiempo real para la disponibilidad de productos (agotado ↔ disponible) tanto en el menú QR como en las interfaces de orden manual (Terminal de Mesas, caja, domicilios). El objetivo es permitir que los comensales y meseros detecten al instante los cambios de stock sin necesidad de recargar la página, preservando el contenido del carrito de compras y evitando retrasos operativos en horas pico. Reglas: propagación multicanal (RN-1), backend como fuente de verdad (RN-2), preservación del carrito ante agotamiento (RN-3), aislamiento absoluto entre tenants (RN-4) y agotamiento automático por inventario con el mismo evento que el marcado manual (RN-5). Seis escenarios de aceptación: reflejo del agotado sin recargar, reflejo del regreso a disponible, agotamiento de un producto presente en el carrito, condición de carrera con 409 Conflict, pérdida y recuperación de la conexión en vivo, y aislamiento de eventos entre tenants."
 

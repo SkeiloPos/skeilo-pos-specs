@@ -5654,6 +5654,117 @@ SC-007 (ningún registro fuera del conjunto final de estados tras la migración)
 
 ---
 
+### A-153 — [DECISIÓN DE NEGOCIO — spec 148] Rechazo por agotado unificado: 400 → 409 con lista `agotados[]`, y chequeo preventivo de inventario al crear el pedido
+
+**Qué cambia**: dos comportamientos del backend (`pos-backend`):
+
+1. **Los caminos de inventario que hoy responden 400 pasan a responder 409**, con el mismo
+   cuerpo unificado `{error, productos_agotados, agotados[{id, tipo, nombre, producto_id,
+   motivo}], …claves heredadas}` que ya usa el 409 por marca manual. Los 409 que ya existían
+   por inventario (adiciones y toppings «Stock insuficiente», carrito QR) **conservan** sus
+   claves heredadas (`insumo`, `disponible`, `requerido`, `contexto`) pero su texto `error`
+   cambia al formato de FR-024 de la spec 148 («Se agotó: X. Quítalo para continuar» / «Se
+   agotaron: A, B. Quítalos para continuar»).
+2. **`POST /orders` (creación de pedido de caja/mostrador, para llevar, domicilio y orden
+   manual) gana un chequeo preventivo de inventario** antes de crear cualquier registro. Hoy
+   ese chequeo solo ocurre al cobrar (`checkout`/`confirm`); con este cambio se adelanta a la
+   creación, igual que ya hace el carrito QR (hallazgo H7 de `research.md`).
+
+**Por qué cambia**: autorizado por `specs/148-disponibilidad-productos-tiempo-real/spec.md`
+(Clarifications de la sesión 2026-11-02, FR-021 a FR-024, Escenario 4 de los acceptance
+scenarios) y `plan.md`/`research.md` (D6, D7, D17, D19) de la misma spec: un único contrato de
+rechazo por agotado (manual, inventario o cantidad) evita que el cliente tenga que distinguir
+un 400 de un 409 para el mismo problema de negocio («no se puede pedir esto»), y el chequeo
+preventivo en `POST /orders` cierra la ventana donde hoy se puede crear un pedido con algo que
+ya no alcanza y que solo se descubre al cobrar.
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de clarificación de la spec
+148, 2026-11-02, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: `POST /orders`, `POST /orders/{id}/items`, `checkout-and-send`,
+`confirm`, `payment-attempts/{id}/approve`, `confirm-cash`, anulación con reemplazo
+(`kitchen.py::void_item`), adiciones y toppings (`toppings.py`, `additions.py`,
+`consumption.py`), y el carrito QR (`cart/service.py::add_item`, `update_item`, `submit_cart`).
+No toca los 409 `productos_no_disponibles` de la spec 128 ni el de adición desasociada de la
+spec 129, que quedan fuera de este contrato. Tampoco toca `sales/complementary.py` (pagos
+complementarios).
+
+**Riesgo asumido**: cualquier cliente que hoy distinga el código 400 del 409 para decidir su
+manejo de error deja de recibir el 400 por inventario — mitigado porque el backend se despliega
+antes que el frontend (aditivo: todas las claves previas se conservan, research.md, Riesgos).
+Ningún test con prefijo `"CONGELA comportamiento actual:"` queda sin actualizar: los que
+afirmaban el 400 se editan citando esta entrada.
+
+**Tests afectados**: characterization tests que hoy congelan el 400 por inventario o el texto
+«Stock insuficiente» (Principio III, actualizados en el mismo commit que el cambio de código que
+los provoca): `pos-backend/app/characterization_tests/test_orders_checkout.py` (`confirm_order`
+y `checkout_and_send`), `test_orders_payment_gate.py` (`confirm_cash`), `test_orders_service.py`
+(`sold_out_detail`), `test_orders_additions.py` («Stock insuficiente» → `agotados[]`). Deben
+seguir en verde, sin editarse, `test_cart_sold_out.py`, `test_orders_sold_out.py`,
+`test_menu_router.py`, `test_menu_sold_out.py`, `test_sales_complementary_payment.py` y
+`test_inventory_stock.py`. Tests nuevos: `test_sold_out_conflict.py` (forma del 409 unificado por
+cada punto de entrada).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/148-disponibilidad-productos-tiempo-real/spec.md` (Clarifications 2026-11-02, FR-021 a
+FR-024), `specs/148-disponibilidad-productos-tiempo-real/research.md` (D6, D7, D17, D19),
+`specs/148-disponibilidad-productos-tiempo-real/contracts/sold-out-conflict.md`.
+
+**Estado (2026-11-02)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 148).
+
+---
+
+### A-154 — [DECISIÓN DE NEGOCIO — spec 148] El menú marca agotado por receta (incluidas las adiciones)
+
+**Qué cambia**: el cálculo de disponibilidad del menú (`GET /menu`, `_build_menu`) hoy solo mira
+la marca manual «Agotado» (spec 093) y las opciones/grupos obligatorios; **no mira la receta**.
+Con esta spec, una presentación, un producto o una adición (`MenuToppingResponse.available`)
+cuyo insumo de receta no alcanza deja de mostrarse como disponible, igual que si estuviera
+marcada a mano — sin modificar `Product.available` (la marca manual es independiente del
+inventario, FR-011). Esto es comportamiento **nuevo**, no documentado por ningún fichero de
+reconocimiento previo (hallazgo H3 de `research.md`): hoy un producto sin insumo suficiente
+puede aparecer «disponible» en el menú hasta que se intenta pedir y el servidor lo rechaza al
+cobrar.
+
+**Por qué cambia**: autorizado por `specs/148-disponibilidad-productos-tiempo-real/spec.md`
+(Clarifications de la sesión 2026-11-02, FR-008 a FR-012, FR-017) y `research.md` (D3, H3): el
+propósito explícito de la spec es que el agotamiento por inventario se vea igual que el marcado
+manual; dejarlo fuera del menú reproduciría la misma brecha que la spec busca resolver (verlo
+solo al fallar el pedido, no antes).
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de clarificación de la spec
+148, 2026-11-02, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: `GET /menu`, `GET /menu/qr-token/{token}`, el nuevo motor
+`catalog_engine/availability.py::compute_availability`, los dos endpoints de snapshot nuevos
+(`GET /menu/availability`, `GET /menu/qr-token/{token}/availability`), y las adiciones que
+existen como producto (`MenuToppingResponse.available`). No cambia la regla ya existente del
+grupo obligatorio `min_select>0` modo `conteo` sin ninguna opción disponible (se mueve sin
+cambios al motor), ni corrige el caso `min_select>1` (fuera de alcance, documentado como
+comportamiento actual no tocado).
+
+**Riesgo asumido**: un producto que hoy se muestra disponible por no mirar la receta puede pasar
+a mostrarse agotado en cuanto se despliega el backend — es la corrección intencional que pide el
+negocio, no un efecto secundario. Mitigado con una prueba de equivalencia (`test_availability_
+engine.py`, T005) que congela el cálculo actual de opciones **antes** de mover el código, de modo
+que el único cambio observable intencional sea la receta.
+
+**Tests afectados**: ningún test con prefijo `"CONGELA comportamiento actual:"` se edita para
+este cambio — es comportamiento nuevo, no una corrección de uno protegido. Tests nuevos:
+`test_availability_engine.py`, `test_availability_snapshot.py`, y los casos nuevos de
+`test_menu_sold_out.py`/`test_menu_router.py` (presentación con receta en 0 ⇒ `available:false`;
+marca manual con insumo suficiente sigue `sold_out:true`; producto sin marca y sin insumo
+conserva `Product.available = True` en la base de datos).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/148-disponibilidad-productos-tiempo-real/spec.md` (Clarifications 2026-11-02, FR-008 a
+FR-012, FR-017), `specs/148-disponibilidad-productos-tiempo-real/research.md` (D3, H3),
+`specs/148-disponibilidad-productos-tiempo-real/data-model.md` (§ Disponibilidad).
+
+**Estado (2026-11-02)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 148).
+
+---
+
 ## Nota sobre una entrada de `memoria-historica.md` deliberadamente excluida
 
 La entrada #1 de `memoria-historica.md` (2026-07-17, commit `8777acbc`) documenta que

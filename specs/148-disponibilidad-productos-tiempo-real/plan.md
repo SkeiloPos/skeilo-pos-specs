@@ -281,3 +281,40 @@ trabajarse en paralelo tras F1 (tocan archivos distintos).
 *No aplica — el Constitution Check no reporta violaciones.* Las piezas de mayor complejidad (gancho
 de sesión, motor único) están justificadas en research.md D3/D4 con sus alternativas descartadas;
 no son excepciones a ningún principio.
+
+## Estado de implementación (2026-11-02)
+
+**IMPLEMENTADA**, ramas `feat/148-product-availability-realtime` en `pos-backend` y
+`pos-heladeria` (creadas desde `develop`), **sin commit ni despliegue** (Principio XV: los commits
+se hacen solo a pedido del usuario).
+
+- **F0** (anomalías): A-153 y A-154 registradas en
+  `specs/000-reconocimiento/registro-de-anomalias.md`.
+- **F1-F3** (backend: motor, eventos, gancho de inventario, 409 unificado): hecho. Suite completa
+  `./env/bin/python -m unittest discover -s app/characterization_tests -p 'test_*.py'` →
+  **2163/2163**, 0 regresiones (línea base: 2092).
+- **F4-F5** (frontend: núcleo + las 6 historias de usuario en todas las superficies): hecho.
+  `ng test --watch=false` → **2702 en verde / 15 fallos / 1 saltada (2718)**, los 15 fallos son el
+  mismo conjunto preexistente de la línea base por nombre de prueba — 0 regresiones nuevas (línea
+  base: 2495 en verde / 79 fallos).
+- **T105** (registrar `menu.updated` en `KNOWN_EVENT_TYPES`): hecho, con confirmación explícita del
+  usuario — activa por primera vez el refresco en vivo de categorías ocultas de la spec 128.
+- **T110** (revisión de `docs-publicos/`/`srs/`): sin cambios. `docs-publicos/` no describe el
+  interruptor «Agotado», el aviso en vivo ni el 409; `srs/README.md` declara explícitamente que
+  documenta solo "el comportamiento real... tal como existe hoy en su código fuente" (ingeniería
+  inversa de `develop`, no una especificación prospectiva) — como esta spec vive en una rama sin
+  fusionar, actualizarlo ahora introduciría citas `[CÓDIGO: ruta:línea]` que no corresponden al
+  código desplegado. Se deja pendiente para cuando esta spec se fusione.
+- Detalle completo de la línea base y el resultado final:
+  `checklists/baseline-suites.md`.
+
+**Orden de despliegue** (si el usuario decide desplegar): backend primero (aditivo — el evento
+`availability.changed` es ignorado por clientes viejos que no lo tengan registrado, y el 409
+conserva todas las claves previas), frontend inmediatamente después, con una recarga manual única
+de las pestañas ya abiertas (mismo caso que la spec 134, `SwUpdate`).
+
+**Pendiente, no bloqueante**: T044/T064/T082/T084/T095/T104/T106/T109 son verificaciones manuales
+con servidores reales (latencia, dos navegadores, dos negocios) — no se ejecutaron en esta pasada
+automatizada; quickstart.md sigue siendo la referencia para ejecutarlas antes de un despliegue a
+producción. La brecha conocida de líneas `kind:'combo'` de la Terminal (tasks.md Notas #5) no se
+resolvió, documentada como fuera de alcance salvo que el dueño la pida aparte.
