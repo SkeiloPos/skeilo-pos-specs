@@ -5933,3 +5933,63 @@ en las specs correspondientes como pendientes de ratificación con el negocio re
 comportamiento validado con el mismo rigor que las rondas 1 y 2. `A-32` sigue como candidata
 aparte a arqueología de datos, sin bloquear ninguna spec (ya excluida por decisión de negocio en
 A-06: aceptar el riesgo sin pedir esa consulta).
+
+---
+
+### A-155 — [DECISIÓN DE NEGOCIO — spec 153] Pago antes de cocina para pedidos de mesa (QR) con módulo de cocina activo
+
+**Qué cambia**: `_assert_closable` (`table_sessions/service.py`, llamada desde `_charge_session`
+→ `charge_session`/`close_session`) deja de exigir que todos los ítems de la sesión estén
+entregados (`estado_cocina != 'pendiente'`) antes de cobrar, **cuando el tenant tiene el módulo
+de plan "cocina" activo** (mismo `has_module_access(db, tenant, "cocina")` que ya usa
+`orders/kitchen.py`); con el módulo inactivo, la validación sigue intacta. Simétricamente,
+`deliver_order` (`orders/kitchen.py`) pasa a exigir `kitchen_status=='LISTO'` para un pedido de
+mesa de un tenant con el módulo activo — hoy no exige nada (solo rechaza `status=='cancelada'`).
+Además, `_charge_session` pasa a invocar automáticamente, tras un cobro exitoso con el módulo
+activo, la misma transición que ya usa `send_to_kitchen` (`kitchen_status: NULL →
+'SIN_PREPARAR'`, `sent_to_kitchen_at = now()`) para cada pedido de la sesión que queda
+`payment_status=='PAID'` y tiene `dining_table_id` no nulo — cobrar y enviar a cocina pasan a ser
+un solo paso, igual que ya ocurre con `checkout_and_send` para mostrador/domicilio (que esta spec
+no toca, FR-009). En el frontend, `ensureReadyToCharge` (`pos-terminal.store.ts`) deja de mostrar
+el diálogo "Entregar y cobrar" ni de llamar a `deliverOrder()` antes de cobrar cuando
+`cocinaAccess` está activo — esa mezcla de entrega y cobro en una sola acción, sin mirar el
+estado real de cocina, es la causa raíz del bug reportado por el usuario.
+
+**Por qué cambia**: autorizado por `specs/153-cobro-previo-cocina-qr/spec.md` (Clarifications de
+la sesión 2026-11-05, FR-001 a FR-004) y `plan.md`/`research.md` de la misma spec: cuando se
+introdujo el módulo de Cocina (specs 149-151), el camino de cobro de sesión de mesa nunca se
+actualizó para distinguir tenants con el módulo activo — siguió aplicando la regla *pre-cocina*
+("todo debe entregarse antes de cobrar") sin excepción, y ningún flujo de pago de mesa quedó
+conectado al estado de cocina.
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de clarificación de la spec
+153, 2026-11-05, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: `_assert_closable`/`_charge_session`/`close_session`/
+`charge_session` (`app/api/v1/table_sessions/service.py`); `deliver_order`/`send_to_kitchen`
+(`app/api/v1/orders/kitchen.py`); `ensureReadyToCharge` (`pos-heladeria/.../pos-terminal.store.ts`).
+No se toca `checkout_and_send` (mostrador/domicilio, FR-009), ni `release_paid_session` (su
+propia llamada a `_assert_closable`, sin tenant, conserva el chequeo de cocina en curso tal cual
+— esta spec no le pasa el gating de módulo porque libera una mesa ya cobrada, no cobra).
+
+**Riesgo asumido**: para un tenant con el módulo de Cocina activo, un pedido de mesa que hoy
+exigía entrega previa al cobro deja de exigirla — es la corrección intencional que pide el
+negocio (el bug reportado), no un efecto secundario. Mitigado con los characterization tests
+nuevos/actualizados de `test_orders_kitchen.py` que cubren ambas ramas (módulo activo/inactivo) y
+el caso de cuenta dividida (FR-002, clarification 2).
+
+**Tests afectados**: se actualiza (no se borra) cualquier test con prefijo `"CONGELA
+comportamiento actual:"` de `app/characterization_tests/test_orders_kitchen.py` que hoy asuma que
+`deliver_order` no valida `kitchen_status`, en el mismo commit que el guard nuevo. Tests nuevos
+en el mismo archivo para el envío automático a cocina desde `_charge_session` (módulo
+activo/inactivo, cuenta dividida) y para el guard nuevo de `deliver_order`; tests nuevos en
+`pos-terminal.store.spec.ts` (`ensureReadyToCharge` con/sin `cocinaAccess`) y en
+`order-status.util.spec.ts` (`canDeliverOrder`, cobro activo + entrega nunca a la vez).
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/153-cobro-previo-cocina-qr/spec.md` (Clarifications 2026-11-05, FR-001 a FR-004),
+`specs/153-cobro-previo-cocina-qr/research.md`, `specs/153-cobro-previo-cocina-qr/data-model.md`,
+`specs/153-cobro-previo-cocina-qr/contracts/table-session-charge.md`,
+`specs/153-cobro-previo-cocina-qr/contracts/order-deliver.md`.
+
+**Estado (2026-11-05)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 153).
