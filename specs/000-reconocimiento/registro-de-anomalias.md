@@ -5992,4 +5992,19 @@ activo/inactivo, cuenta dividida) y para el guard nuevo de `deliver_order`; test
 `specs/153-cobro-previo-cocina-qr/contracts/table-session-charge.md`,
 `specs/153-cobro-previo-cocina-qr/contracts/order-deliver.md`.
 
-**Estado (2026-11-05)**: REGISTRADA, implementación en curso (`/speckit-implement` de spec 153).
+**Estado (2026-11-05)**: implementada (`/speckit-implement` de spec 153). Characterization
+tests nuevos/actualizados: `app/characterization_tests/test_table_sessions_service.py`
+(`test_charge_session_con_cocina_activa_envia_a_cocina_tras_cobrar`,
+`test_assert_closable_con_cocina_activa_no_exige_entrega_previa`,
+`test_charge_session_cuenta_dividida_solo_envia_lo_que_cobra_en_esta_llamada`,
+`test_charge_session_sin_cocina_no_envia_a_cocina_ni_cambia_assert_closable`,
+`test_assert_closable_sin_cocina_sigue_exigiendo_entrega_previa`) y
+`app/characterization_tests/test_orders_kitchen.py`
+(`test_deliver_order_409_order_not_ready_con_cocina_activa_y_no_listo`,
+`test_deliver_order_permite_entregar_con_cocina_activa_y_listo`,
+`test_deliver_order_sin_cocina_activa_no_exige_kitchen_status`); frontend
+`pos-terminal.store.spec.ts` (`ensureReadyToCharge` con/sin `cocinaAccess`) y
+`order-status.util.spec.ts` (`canDeliverOrder`/`canSendToKitchen`). Suite completa de
+characterization tests del backend (2212 tests) y los dos archivos de frontend tocados en
+verde; pendiente solo la validación manual end-to-end de `quickstart.md` (T025) contra
+backend+frontend corriendo en local.
