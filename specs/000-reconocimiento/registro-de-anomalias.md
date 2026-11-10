@@ -6008,3 +6008,196 @@ tests nuevos/actualizados: `app/characterization_tests/test_table_sessions_servi
 characterization tests del backend (2212 tests) y los dos archivos de frontend tocados en
 verde; pendiente solo la validación manual end-to-end de `quickstart.md` (T025) contra
 backend+frontend corriendo en local.
+
+---
+
+### A-156 — `paid` queda `False` para cualquier pedido cobrado junto con otro(s) (unificado de
+2+, o split), y `onCharged()` tenía una carrera que rechazaba el refresco tras un cobro
+independiente (spec 156)
+
+**Descripción**: `CustomerOrder.payment_status` se fija en `'PAID'` de forma incondicional
+para TODO pedido cobrado, sin importar cuántos se cobren juntos ni el modo
+(`table_sessions/service.py::_charge_session`, corre después de `_close_unified`/
+`_close_split`; mismo patrón incondicional en `orders/checkout.py` para mostrador/QR). Pero el
+campo `paid` que viaja al frontend (`GET /orders/{id}`, `GET /orders`) se calculaba solo con
+`order_has_sale`/`paid_order_ids`, que miran si existe una `Sale` con
+`Sale.customer_order_id == order_id` — el único vínculo entre una `Sale` y un `CustomerOrder`
+(no hay tabla de asociación). `_close_unified` solo rellena ese campo cuando la venta cubre a
+un único pedido (`orders[0].id if len(orders) == 1 else None`); `_close_split` nunca lo rellena.
+Resultado: cualquier pedido cobrado junto con otro(s) quedaba con `payment_status='PAID'` pero
+`paid=False` — la pastilla "Pendiente" fantasma reportada por el usuario en la pantalla
+"Órdenes". El propio archivo de tests ya documentaba la intención correcta sin que el código la
+cumpliera (`test_orders_service.py:731-736`: "desde spec 146/147, `payment_status` ya es la
+señal primaria y confiable... `order_has_sale` queda como red de seguridad adicional").
+
+Bug relacionado en frontend: `onCharged()` (`pos-terminal.store.ts`) disparaba
+`loadSessionBill(tableId)` dos veces en paralelo tras un cobro -- una llamada directa y la que
+`reload()` ya hace por su cuenta (correctamente, después de refrescar `orders()`). Si la
+llamada directa ganaba la carrera, `chargeOrderIdsParam()` todavía apuntaba al pedido recién
+cobrado (seleccionado para un cobro independiente, spec 156), el backend lo rechazaba con 409
+(`_resolve_orders_to_charge`, ya no facturable), y el cajero veía "Algunos pedidos
+seleccionados no se pueden cobrar."/"Selecciona una mesa con consumo." sin ningún problema
+real -- agravado porque `loadSessionBill` fijaba `billOrphan` en `false` a ciegas en su `catch`.
+
+- **CÓDIGO**: `app/api/v1/orders/service.py:95-106` (`order_has_sale`) y `:379-387`
+  (`paid_order_ids`) vs. `app/api/v1/table_sessions/service.py:435` (`payment_status='PAID'`
+  incondicional) y `:972` (`customer_order_id=orders[0].id if len(orders) == 1 else None`);
+  precedente de que `payment_status` ya se trataba como señal suficiente en otro punto del
+  propio repo: `app/api/v1/orders/kitchen.py:413`. Frontend:
+  `pos-heladeria/.../pos-terminal.store.ts` (`onCharged`, `loadSessionBill`).
+  **Clasificación**: **ACCIDENTAL** (asimetría verificable entre cómo se marca
+  `payment_status` -- incondicional -- y cómo se marcaba `Sale.customer_order_id` --
+  condicional a `len(orders) == 1`, nunca en split --; la carrera de frontend es un problema de
+  timing entre dos llamadas a la misma función, también verificable en el código. Ninguno de
+  los dos requiere testigo de negocio.)
+  **Tratamiento acordado**: corregido en el mismo commit que esta entrada —
+  `order_has_sale`/`paid_order_ids` pasan a usar `payment_status == 'PAID'` como criterio
+  primario (OR con el chequeo de `Sale` existente, no se retira); `onCharged()` limpia
+  `selectedChargeOrderIds` de forma síncrona y deja de duplicar la llamada a
+  `loadSessionBill`; `loadSessionBill` recalcula `billOrphan` en su `catch` en vez de fijarlo en
+  `false`. No retroactivo en sentido de datos: `paid` es un valor calculado en cada respuesta,
+  el fix aplica solo a toda consulta futura, incluida la de pedidos ya cobrados en el pasado
+  bajo el bug.
+  **Fuera de alcance, documentado como límite conocido**: `_venta_propia`/
+  `invoice_and_payment_info` (`orders/service.py`, ~líneas 159-168 y 356-377) siguen sin poder
+  resolver la `Sale` exacta de un pedido cobrado en grupo para "Imprimir Factura" (solo el
+  fallback impreciso `Sale.table_session_id`). No reportado como roto por el usuario — no se
+  toca aquí.
+  **Tests afectados**: nuevos en `app/characterization_tests/test_orders_service.py`
+  (`TestOrderHasSale`: cobro unificado de 2 pedidos, cobro split, no-regresión de 1 pedido,
+  no-falso-positivo de pedido sin pagar); en frontend, `pos-terminal.store.spec.ts` adapta el
+  describe de `onCharged` existente (deja de mockear `reload()` entero, mockea
+  `tableService.loadTables`/`reloadOrders`) y suma dos aserciones (limpieza síncrona de
+  `selectedChargeOrderIds`, una sola secuencia de red sin dos round-trips compitiendo).
+  **Decisión de negocio pendiente**: ninguna.
+
+**Quién y cuándo**: reportado directamente por el usuario en chat tras observar la pastilla
+"Pendiente" en pedidos ya cobrados en grupo y el error de cobro tras un cobro independiente;
+investigado, confirmado y corregido el 2026-11-10.
+
+**Estado (2026-11-10)**: implementado. Suite completa de characterization tests del backend
+(2234 tests) y suite del módulo `tables` del frontend (misma línea base de 7 fallos
+preexistentes, sin nuevos) en verde.
+
+---
+
+### A-157 — Mesa liberada (`'closed'`) sigue mostrando sus pedidos ya pagados si se cobraron
+juntos en una venta unificada (`list_orders`, spec 156)
+
+**Descripción**: mismo defecto de fondo que A-156, en un punto distinto del código. `GET
+/orders` con `active_sessions_only=True` (usado por la Terminal de Mesas para no mezclar
+pedidos de una visita ya liberada con la sesión activa) decide "¿ya está pagado?" con
+`pedidos_pagados = select(Sale.customer_order_id).where(Sale.customer_order_id.isnot(None))`
+(`app/api/v1/orders/service.py:521`, antes del fix) — el mismo vínculo que `_close_unified`
+deja en `NULL` cuando una venta unificada cubre 2+ pedidos, y que `_close_split` nunca rellena.
+Al liberar una mesa cuyos pedidos se cobraron juntos (p. ej. "Pedido 41"/"Pedido 42" en una
+sola transacción), ninguno de los dos aparecía en `pedidos_pagados`, así que seguían
+"activos" para siempre aunque su `TableSession` ya estuviera `'closed'` y la mesa `'libre'` en
+la base de datos — el cajero liberaba la mesa y la pantalla "Pedido de la mesa" seguía
+mostrándola ocupada, con ambos pedidos y el placeholder "Selecciona una mesa con consumo." en
+el panel de cobro (`billOrphan` calculado en `false` porque ambos pedidos SÍ están pagados,
+solo que `list_orders` nunca los había excluido de `orders()`).
+
+- **CÓDIGO**: `app/api/v1/orders/service.py:519-528` (`list_orders`, filtro
+  `active_sessions_only`) vs. `app/api/v1/table_sessions/service.py:972` (`_close_unified`,
+  `customer_order_id=None` para 2+ pedidos) y `_close_split` (nunca lo rellena). Mismo patrón ya
+  corregido en A-156 para `order_has_sale`/`paid_order_ids` (`orders/service.py:95-106,392-415`)
+  -- `list_orders` quedó con la versión vieja del chequeo cuando se corrigieron esas dos
+  funciones.
+  **Clasificación**: **ACCIDENTAL** (mismo hecho verificable que A-156 -- un vínculo
+  `Sale.customer_order_id` insuficiente para "¿está pagado?" cuando 2+ pedidos comparten una
+  venta -- aplicado aquí a una tercera función que no se tocó en A-156. No requiere testigo de
+  negocio.)
+  **Tratamiento acordado**: corregido en el mismo commit que esta entrada — `pedidos_pagados`
+  pasa a usar `CustomerOrder.payment_status == 'PAID'` como criterio primario, con el vínculo de
+  `Sale` como respaldo OR (mismo patrón que A-156). El frontend (`releaseTable()`,
+  `pos-terminal.store.ts`) no tenía ningún bug propio -- ya llamaba a `reload()` y
+  `cancelSelection()` correctamente tras liberar; el problema era enteramente que el pedido
+  nunca desaparecía de `orders()` porque el backend lo seguía reportando como "activo".
+  **Tests afectados**: nuevo en `app/characterization_tests/test_orders_service.py`
+  (`TestListOrdersActiveSessionsOnly::test_excluye_pedidos_pagados_juntos_en_venta_unificada_de_sesion_ya_cerrada`);
+  los 5 tests existentes de esa clase siguen en verde sin cambios (el fix es un criterio
+  primario adicional, no retira el chequeo de `Sale` del que dependían).
+  **Decisión de negocio pendiente**: ninguna.
+
+**Quién y cuándo**: reportado directamente por el usuario en chat ("ya liberé la mesa pero me
+sale como si tuviera pedidos"), investigado y corregido el 2026-11-10.
+
+**Estado (2026-11-10)**: implementado. Suite completa de characterization tests del backend
+(2235 tests) en verde.
+
+---
+
+### A-158 — Elegir la pestaña de un pedido ya pagado lo dejaba seleccionado para cobrar,
+disparando "Algunos pedidos seleccionados no se pueden cobrar." (spec 156)
+
+**Descripción**: `selectChargeOrderOnly(orderId)` (`pos-terminal.store.ts`, llamada desde
+`selectOrderTab()` al elegir cualquier pestaña "Pedido N") fijaba `selectedChargeOrderIds` a
+`{orderId}` sin comprobar si ese pedido seguía siendo cobrable. El cajero solo quería VER el
+detalle de un pedido ya `PAGADO` (p. ej. para revisar sus ítems) -- pero elegir su pestaña lo
+dejaba como único "a cobrar", `chargeOrderIdsParam()` mandaba ese id a `GET /bill`, y el
+backend lo rechazaba con 409 (`_resolve_orders_to_charge`: ya no es facturable), mostrando
+"Algunos pedidos seleccionados no se pueden cobrar."/"Selecciona una mesa con consumo." sin que
+el cajero tuviera ninguna intención de cobrarlo.
+
+- **CÓDIGO**: `pos-heladeria/.../pos-terminal.store.ts` (`selectChargeOrderOnly`, llamada sin
+  guard desde `pos-order-panel.component.ts::selectOrderTab`).
+  **Clasificación**: **ACCIDENTAL** (falta un chequeo obvio -- "¿este pedido todavía es
+  cobrable?" -- antes de usarlo como selección de cobro; verificable en el código, no una
+  decisión de negocio).
+  **Tratamiento acordado**: corregido en el mismo commit que esta entrada —
+  `selectChargeOrderOnly` ahora es un no-op (no toca la selección ni dispara ningún refresco) si
+  el pedido no está en `chargeableOrderIds()` (los aún sin pagar).
+  **Tests afectados**: nuevo en `pos-order-panel.component.spec.ts` ("elegir la pestaña de un
+  pedido YA PAGADO no lo deja seleccionado para cobrar").
+  **Decisión de negocio pendiente**: ninguna.
+
+**Quién y cuándo**: reportado directamente por el usuario en chat, investigado y corregido el
+2026-11-10.
+
+**Estado (2026-11-10)**: implementado. Suite del módulo `tables` del frontend (misma línea
+base de 7 fallos preexistentes, sin nuevos) en verde.
+
+---
+
+### A-159 — Un refresco de fondo (sondeo o evento de tiempo real de otra mesa) borraba la
+selección de cobro de un pedido específico, cobrando toda la mesa en su lugar (spec 153/156)
+
+**Descripción**: `chargeableOrderIds` (`pos-terminal.store.ts`) es un `computed()` derivado en
+cadena de `orders()`. Cada recarga de fondo (`reloadOrders()`, disparada por el sondeo de
+10s/60s o por CUALQUIER evento de tiempo real del tenant, no solo de la mesa que el cajero
+tiene abierta) hace `this.orders.set(orders)` con un arreglo nuevo en cada respuesta, aunque
+el contenido no cambie -- las señales de Angular comparan por referencia (`Object.is`) por
+defecto. El efecto de reset de `selectedChargeOrderIds` (constructor, spec 156 D7) depende de
+`chargeableOrderIds()` y sobreescribía la selección a "todos los pedidos sin cobrar" en cada
+uno de esos cambios de referencia espurios, sin ninguna condición. Resultado: el cajero elige
+un pedido específico para cobrar ("Pedido 52"), pero si un sondeo o un evento ajeno llega antes
+de que confirme el pago, la selección vuelve a "todos" sin ningún indicio visual -- al
+presionar "Cobrar" se cobran (y, con el módulo Cocina activo, spec 153, se envían a cocina)
+TODOS los pedidos de la mesa, no solo el elegido. Spec 153 ("cobrar sin entregar") hace este
+bug mucho más fácil de disparar porque alarga la ventana entre elegir el pedido y confirmar el
+pago (el cajero revisa el método de pago del QR antes de confirmar).
+
+- **CÓDIGO**: `pos-heladeria/.../pos-terminal.store.ts` -- el efecto de reset (constructor,
+  cerca de `selectChargeOrderIds`) y la definición de `chargeableOrderIds` (antes sin `equal`
+  por contenido). Backend confirmado limpio: `charge_session`/`_charge_session` siempre
+  reenvían y respetan `order_ids` acotado; sin ruta alterna de cobro (`PaymentAttemptReviewPanelComponent`
+  es código muerto).
+  **Clasificación**: **ACCIDENTAL** (igualdad por referencia por defecto de las señales de
+  Angular aplicada sin querer a un arreglo derivado que cambia de referencia en cada fetch,
+  verificable en el código; no una decisión de negocio).
+  **Tratamiento acordado**: corregido en el mismo commit que esta entrada —
+  `chargeableOrderIds` pasa a tener igualdad por contenido (`equal` por conjunto de ids, no
+  por referencia); el efecto de reset además depende explícitamente de `selectedTableId()`
+  para seguir reseteando siempre al cambiar de mesa, incluso en el caso límite de que ambas
+  mesas tengan el mismo conjunto (vacío) de pedidos cobrables.
+  **Tests afectados**: nuevos en `pos-order-panel.component.spec.ts` ("una recarga de
+  orders() sin cambios reales no resetea la selección", "cambiar de mesa sí resetea la
+  selección a todos", "un pedido nuevo en la misma mesa sí resetea la selección a todos").
+  **Decisión de negocio pendiente**: ninguna.
+
+**Quién y cuándo**: reportado directamente por el usuario en chat, investigado y corregido el
+2026-11-10.
+
+**Estado (2026-11-10)**: implementado. Suite del módulo `tables` del frontend (misma línea
+base de 7 fallos preexistentes, sin nuevos) en verde.
