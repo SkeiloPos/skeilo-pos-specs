@@ -6201,3 +6201,284 @@ pago (el cajero revisa el método de pago del QR antes de confirmar).
 
 **Estado (2026-11-10)**: implementado. Suite del módulo `tables` del frontend (misma línea
 base de 7 fallos preexistentes, sin nuevos) en verde.
+
+### A-160 — [DECISIÓN DE NEGOCIO — spec 157] Modalidad de cobro del plan gobierna también el envío a cocina de pedidos TAKEAWAY/DELIVERY
+
+**Qué cambia**: `Plan.modalidad_pago_qr` (`PAY_AFTER_RECEIVING`/`PAY_BEFORE_RECEIVING`, spec 154)
+ampliaba hasta ahora su efecto solo al mensaje de instrucción del menú QR
+(`cart/router.py::submit_cart`/`my_orders`). Esta decisión extiende su alcance para que también
+gobierne cuándo un pedido `TAKEAWAY`/`DELIVERY` (`dining_table_id IS NULL`) puede enviarse a
+cocina en un tenant con el módulo de plan "cocina" activo:
+
+- `kitchen.kitchen_requires_prior_payment(db, tenant, order)` (`app/api/v1/orders/kitchen.py`,
+  función nueva): para pedidos de mesa (`dining_table_id` no nulo) exige pago previo siempre,
+  sin cambios respecto a spec 153; para TAKEAWAY/DELIVERY, exige pago previo solo si la
+  modalidad del plan es `PAY_BEFORE_RECEIVING` (o si no hay `tenant` resuelto, para no romper
+  llamadores legados sin tenant).
+- `kitchen._apply_kitchen_send`/`kitchen.send_to_kitchen` pasan a aceptar un flag
+  `requires_prior_payment` (default `True`, para no alterar a `_charge_session`/DINE_IN) que
+  sustituye la exigencia fija `payment_status == 'PAID'`.
+- `checkout.pay_order` (`app/api/v1/orders/checkout.py`): tras fijar `payment_status = 'PAID'`
+  y antes del commit, si el tenant tiene el módulo de Cocina activo, el pedido no tiene mesa y
+  la modalidad del plan es `PAY_BEFORE_RECEIVING`, dispara automáticamente
+  `kitchen._apply_kitchen_send` en la misma transacción — cobrar y enviar a cocina pasan a ser
+  un solo paso para mostrador/domicilio, igual al patrón ya existente de `_charge_session` para
+  mesas (spec 153). El router (`orders/router.py::pay_order`) emite
+  `events.order_sent_to_kitchen` post-commit cuando esto ocurrió, leyendo un atributo transitorio
+  no persistido (`order.sent_to_kitchen_now`) que `pay_order` deja marcado — mismo patrón de
+  atributo transitorio ya usado por `paid`/`staff_user_name`/`qr_payment_instruction_mode`.
+- `POST /orders/{id}/send-to-kitchen` (`router.py::send_to_kitchen`) pasa a invocar
+  `kitchen.send_to_kitchen(..., tenant=tenant)`: con `PAY_AFTER_RECEIVING`, un TAKEAWAY/DELIVERY
+  sin pagar ya no recibe `409 ORDER_NOT_PAID` — se envía a cocina con `payment_status` aún
+  `'UNPAID'`. Con `PAY_BEFORE_RECEIVING` esa misma combinación sigue rechazándose exactamente
+  igual que antes (FR-004): la única vía para ese caso es el auto-envío de `pay_order`.
+- `_load_order`/`_decorate_orders` (`router.py`) extienden el cómputo de
+  `OrderResponse.qr_payment_instruction_mode` (ya existente para el menú QR) a los endpoints de
+  staff `GET /orders/{id}` y `GET /orders` (ambas ramas), para que el frontend decida la
+  visibilidad del botón manual "Enviar a cocina".
+- Frontend: `canSendToKitchen` (`pos-heladeria/src/app/modules/orders/order-status.util.ts`)
+  deja de exigir `payment_status == 'PAID'` incondicionalmente — para TAKEAWAY/DELIVERY
+  (`dining_table_id` nulo) con `qr_payment_instruction_mode == 'PAY_AFTER_RECEIVING'`, permite
+  mostrar el botón sin pagar; para pedidos de mesa, o cualquier otra modalidad, conserva la
+  exigencia de pago. Con esto, el botón queda oculto exactamente cuando
+  `order_type ∈ {TAKEAWAY, DELIVERY} AND módulo Cocina activo AND
+  qr_payment_instruction_mode == 'PAY_BEFORE_RECEIVING' AND payment_status == 'UNPAID'` (FR-002).
+
+**Por qué cambia**: autorizado por `specs/157-cocina-pedidos-llevar-domicilio/spec.md`
+(Clarifications, 2026-11-11) y `plan.md`/`research.md` (Decisiones 1, 2 y 5) de la misma spec:
+el envío automático a cocina tras cobro (patrón de spec 153) estaba codificado exclusivamente
+para pedidos de mesa, y el envío manual exigía siempre `payment_status = 'PAID'`. Ninguna de las
+dos rutas contemplaba la modalidad de cobro del plan (spec 154) para TAKEAWAY/DELIVERY, así que
+estos quedaban bloqueados en tenants con módulo de Cocina activo: en "Pago antes de recibir"
+nadie los enviaba automáticamente al cobrar, y en "Pago después de recibir" no podían enviarse
+porque no estaban pagados. El usuario confirmó explícitamente, durante la sesión de
+clarificación de spec 157, extender el alcance de `modalidad_pago_qr` más allá del menú QR para
+resolver este bloqueo operativo.
+
+**Quién y cuándo**: decisión tomada con el usuario durante la sesión de clarificación de la spec
+157, 2026-11-11, antes de implementar (Principio II: registro previo a la implementación).
+
+**Funcionalidades afectadas**: `kitchen.kitchen_requires_prior_payment`/`_apply_kitchen_send`/
+`send_to_kitchen` (`app/api/v1/orders/kitchen.py`); `checkout.pay_order`
+(`app/api/v1/orders/checkout.py`); `router.py::pay_order`/`send_to_kitchen`/`_load_order`/
+`_decorate_orders`/`list_orders`/`get_order` (`app/api/v1/orders/router.py`);
+`table_sessions/service.py::_charge_session` (solo el call-site de `_apply_kitchen_send`, pasa
+`requires_prior_payment=True` explícito, sin cambio de comportamiento); `canSendToKitchen`
+(`pos-heladeria/src/app/modules/orders/order-status.util.ts`). No se toca `checkout_and_send`
+(`hold_for_payment`) ni `deliver_order`/`change_kitchen_status` — fuera de alcance de esta spec
+(research.md Decisión 4; contracts/kitchen-payment-modality.md, sección "No-contrato").
+
+**Riesgo asumido**: para un tenant con el módulo de Cocina activo y el plan en
+`PAY_AFTER_RECEIVING`, un TAKEAWAY/DELIVERY que hoy exigía pago previo para entrar a cocina deja
+de exigirlo — es la corrección intencional que pide el negocio, no un efecto secundario.
+Mitigado con los characterization tests nuevos/actualizados de `test_orders_kitchen.py`/
+`test_orders_checkout.py` que cubren las cuatro combinaciones de la tabla de `data-model.md`
+(order_type × módulo Cocina × modalidad), más la verificación de no-regresión para DINE_IN y
+tenants sin módulo de Cocina activo (US3).
+
+**Tests afectados**: ningún test existente con prefijo `"CONGELA comportamiento actual:"` fijaba
+literalmente "TAKEAWAY/DELIVERY nunca se auto-envía a cocina" o "`_apply_kitchen_send` siempre
+exige `PAID`" de forma que requiriera reescritura explícita — los tests preexistentes de
+`test_orders_kitchen.py`/`test_orders_checkout.py` usaban `tenant=None`/pedidos `DINE_IN`, que
+siguen exigiendo pago previo sin cambios. Tests nuevos en `test_orders_checkout.py`
+(`test_pay_order_envia_a_cocina_automaticamente_con_pay_before_receiving_takeaway`/`_delivery`,
+`test_pay_order_no_envia_a_cocina_si_modalidad_pay_after_receiving`,
+`test_pay_order_no_envia_a_cocina_sin_modulo_cocina_activo`,
+`test_pay_order_no_altera_kitchen_status_ya_alcanzado_sin_pago_previo`,
+`test_pay_order_sin_modulo_cocina_activo_no_cambia_comportamiento_en_ninguna_modalidad`) y en
+`test_orders_kitchen.py` (`test_send_to_kitchen_rechaza_takeaway_sin_pagar_con_pay_before_receiving`,
+`test_send_to_kitchen_permite_takeaway_sin_pagar_con_pay_after_receiving`/`_delivery`,
+`test_send_to_kitchen_takeaway_sin_pagar_sin_tenant_se_asume_sin_exigir_pago`,
+`test_deliver_order_y_change_kitchen_status_siguen_exigiendo_lo_mismo_para_takeaway_sin_pagar`).
+Tests nuevos en `test_orders_billing_summary.py`
+(`TestQrPaymentInstructionModeEnEndpointsDeStaff`) para el cómputo de
+`qr_payment_instruction_mode` en `GET /orders`/`GET /orders/{id}`. Cinco archivos de test
+existentes (`test_orders_pagination.py`, `test_orders_date_search_filters.py`,
+`test_orders_billing_summary.py`, `test_orders_status_type_filters.py`,
+`test_orders_invoice_reference_and_payment_method.py`) tuvieron que actualizar sus helpers de
+llamado directo a `orders_router.get_order`/`list_orders` para pasar un `tenant` explícito y
+mockear `plan_service.get_qr_payment_instruction_mode` (plumbing de test, no cambio de
+aserciones congeladas — mismo gotcha de "llamado directo sin pasar por FastAPI" ya documentado
+para otros parámetros `Query`/`Depends` de este router). Frontend:
+`order-status.util.spec.ts::canSendToKitchen` con 4 casos nuevos para las combinaciones
+mesa/TAKEAWAY × modalidad × pagado/no pagado.
+
+**Clasificación**: DECISIÓN DE NEGOCIO. **Tratamiento acordado**:
+`specs/157-cocina-pedidos-llevar-domicilio/spec.md` (Clarifications 2026-11-11),
+`specs/157-cocina-pedidos-llevar-domicilio/research.md` (Decisiones 1, 2, 4, 5),
+`specs/157-cocina-pedidos-llevar-domicilio/data-model.md`,
+`specs/157-cocina-pedidos-llevar-domicilio/contracts/kitchen-payment-modality.md`.
+
+**Estado (2026-11-11)**: implementado. Characterization tests nuevos/actualizados en
+`app/characterization_tests/test_orders_checkout.py`, `test_orders_kitchen.py` y
+`test_orders_billing_summary.py` (más el plumbing de `tenant`/mock en los cinco archivos
+listados arriba); suite completa de characterization tests del backend (2249 tests) en verde,
+sin fallos nuevos. Frontend: `order-status.util.spec.ts` (40 tests) en verde;
+`pos-order-panel.component.spec.ts` y `manual-order-page.component.spec.ts` verificados en
+verde salvo la misma línea base de fallos preexistentes ya documentada en memoria del proyecto
+(2 y 3 fallos respectivamente, sin relación con `canSendToKitchen`). Pendiente: validación
+manual end-to-end de `quickstart.md` (T022/T025) contra backend+frontend corriendo en local con
+Postgres.
+
+**Addendum (2026-11-12) — hallazgo post-implementación reportado por el usuario**: el cobro real
+de mostrador/domicilio en producción no pasa por `pay_order` sino por `checkout_and_send`
+(`pos-terminal.store.ts::checkoutAndSend` → `POST /orders/{id}/checkout-and-send`, el camino de
+comandas creadas con `hold_for_payment=True`) — `pay_order` nunca se ejercita para estos pedidos
+desde la UI real. `checkout_and_send` no estaba en el alcance original de esta spec
+(research.md Decisión 4 lo marcó explícitamente fuera de alcance, con la instrucción de
+reportarlo como hallazgo si se detectaba que un flujo de UI activo dependía de él). Confirmado
+ese caso, el usuario autorizó extenderlo:
+
+- `checkout.checkout_and_send`: con el módulo de Cocina activo y el pedido sin mesa, deja de
+  auto-despachar a `'entregada'` (la simplificación de spec 147 ciclo 2, que asumía que un
+  pedido sin mesa no tenía ningún paso de cocina que mostrar) — en su lugar, igual que
+  `pay_order`, dispara `kitchen._apply_kitchen_send` cuando la modalidad es
+  `PAY_BEFORE_RECEIVING`. Sin módulo activo, o sin `tenant` resuelto, conserva exactamente el
+  comportamiento anterior (dos atributos transitorios nuevos, `sent_to_kitchen_now`/
+  `auto_dispatched_now`, para que `router.py::checkout_and_send` sepa qué evento emitir
+  post-commit sin cambiar el contrato HTTP).
+- Efecto en cascada detectado y confirmado con el usuario: al dejar de auto-despachar, un
+  TAKEAWAY/DELIVERY con Cocina activa necesita el mismo paso de "Entregar" que una mesa una vez
+  `kitchen_status == 'LISTO'` — si no, quedaría atascado sin forma de cerrarse. Se extendió
+  `kitchen.deliver_order` (el guard `ORDER_NOT_READY`, antes condicionado a
+  `dining_table_id is not None`, ahora aplica a cualquier pedido con el módulo activo) y
+  `canDeliverOrder`/`canSendToKitchen` ya cubrían la base en el frontend
+  (`pos-heladeria/order-status.util.ts`) — se quitó la restricción `!dining_table_id → false` de
+  `canDeliverOrder` cuando `cocinaAccess` está activo, dejando intacto el camino sin cocina.
+
+**Tests afectados (addendum)**: `test_orders_checkout.py`
+(`test_checkout_and_send_envia_a_cocina_automaticamente_con_pay_before_receiving_sin_mesa`,
+`test_checkout_and_send_no_despacha_automaticamente_con_cocina_activa_y_pay_after_receiving`,
+`test_checkout_and_send_sin_modulo_cocina_mantiene_el_despacho_automatico_de_siempre`,
+`test_checkout_and_send_sin_tenant_mantiene_el_despacho_automatico_de_siempre`);
+`test_orders_kitchen.py` (reescrito
+`test_deliver_order_y_change_kitchen_status_siguen_exigiendo_lo_mismo_para_takeaway_sin_pagar` →
+`test_deliver_order_exige_listo_tambien_para_takeaway_con_cocina_activa` +
+`test_deliver_order_permite_entregar_takeaway_listo_con_cocina_activa` +
+`test_deliver_order_sin_cocina_activa_takeaway_no_exige_kitchen_status`, porque el test original
+congelaba un comportamiento que esta misma spec decidió cambiar en el addendum, no una
+aserción previa a ella). Frontend: `order-status.util.spec.ts::canDeliverOrder` -- reescrito el
+caso "sin mesa, nunca permite entregar" (misma razón: era parte del alcance original de esta
+spec, no una aserción congelada previa).
+
+**Estado (2026-11-12)**: implementado el addendum. Suite completa de characterization tests del
+backend en verde tras el cambio (confirmado con `test_orders_kitchen.py`/
+`test_orders_checkout.py` en verde y corrida completa de la suite); frontend
+`order-status.util.spec.ts` en verde. Pendiente: validación manual end-to-end de
+`quickstart.md` (T022/T025) contra backend+frontend corriendo en local con Postgres, cubriendo
+también el camino real `checkout_and_send` (no solo `pay_order`).
+
+**Addendum 2 (2026-11-12) — ajuste pedido por el usuario sobre el addendum anterior**: tras ver
+el resultado en el POS, el usuario pidió explícitamente que cobrar un TAKEAWAY/DELIVERY NO
+dispare el envío automático a cocina ni siquiera en `PAY_BEFORE_RECEIVING` — quiere que sigan el
+mismo flujo manual que ya usan las mesas desde este panel de mostrador (`pay_order`/
+`checkout_and_send`, no `_charge_session`): cobrar solo fija `payment_status='PAID'`; enviar a
+cocina sigue siendo una acción manual aparte (botón "Enviar a cocina",
+`kitchen.send_to_kitchen`), que queda habilitada justo después de cobrar porque
+`kitchen_requires_prior_payment` ya ve el pago fijo. Se revirtió el bloque de auto-envío que el
+Addendum 1 había añadido a `checkout.pay_order` y `checkout.checkout_and_send` (la llamada a
+`kitchen._apply_kitchen_send`/`kitchen.kitchen_requires_prior_payment` y el atributo transitorio
+`sent_to_kitchen_now`, junto con su emisión de `events.order_sent_to_kitchen` en `router.py`),
+manteniendo intacto el resto del Addendum 1: `checkout_and_send` sigue sin bypasear el tablero de
+cocina para TAKEAWAY/DELIVERY con el módulo activo (no se auto-despacha a `'entregada'`), y
+`deliver_order`/`canDeliverOrder` siguen exigiendo `kitchen_status == 'LISTO'` sin importar si
+hay mesa o no.
+
+**Tests afectados (addendum 2)**: en `test_orders_checkout.py`, se consolidaron/reescribieron
+`test_pay_order_envia_a_cocina_automaticamente_con_pay_before_receiving_takeaway`/`_delivery`,
+`test_pay_order_no_envia_a_cocina_si_modalidad_pay_after_receiving`,
+`test_pay_order_no_envia_a_cocina_sin_modulo_cocina_activo` y
+`test_pay_order_sin_modulo_cocina_activo_no_cambia_comportamiento_en_ninguna_modalidad` en una
+sola `test_pay_order_nunca_auto_envia_a_cocina_pedidos_sin_mesa` (cubre las 4 combinaciones
+order_type × módulo Cocina vía `subTest`); `test_pay_order_no_altera_kitchen_status_ya_alcanzado_sin_pago_previo`
+se simplificó (ya no necesita mockear la modalidad, porque `pay_order` ya no la lee).
+`test_checkout_and_send_envia_a_cocina_automaticamente_con_pay_before_receiving_sin_mesa` y
+`test_checkout_and_send_no_despacha_automaticamente_con_cocina_activa_y_pay_after_receiving` se
+consolidaron en `test_checkout_and_send_no_auto_envia_a_cocina_pero_ya_no_bypasea_el_tablero`.
+Estos tests reescritos eran del mismo Addendum 1 de esta misma spec dentro de esta misma
+sesión, no aserciones `"CONGELA comportamiento actual:"` previas a ella.
+
+**Estado (2026-11-12)**: implementado el addendum 2. Suite completa de characterization tests
+del backend (2250 tests) en verde tras el ajuste. No requirió cambios de frontend (`canSendToKitchen`
+ya mostraba el botón solo una vez pagado, igual que mesas; `canDeliverOrder`/`deliver_order` del
+addendum 1 siguen necesarios porque los pedidos sin mesa con cocina activa siguen su propio ciclo
+de cocina). Pendiente: validación manual end-to-end de `quickstart.md` (T022/T025).
+
+**Addendum 3 (2026-11-12) — hallazgo visual reportado por el usuario**: con el ajuste del
+Addendum 2 (cobrar ya no auto-envía a cocina), un TAKEAWAY/DELIVERY pagado pero aún cocinándose
+desaparecía por completo de las pestañas "Domicilios"/"Para llevar" del panel de mostrador
+(`pos-tables-panel.component.ts`), porque `PosTerminalStore.ordersByTypeFiltered` (spec 059,
+Historia 2) seguía usando el criterio pre-cocina `!paid` para decidir qué pedidos mostrar --
+cualquier pedido ya cobrado se ocultaba de inmediato, sin mirar su `kitchen_status`. El usuario
+pidió que, con el módulo de Cocina activo, estos pedidos sigan visibles (igual que una mesa)
+mientras cocinan, y solo desaparezcan cuando están pagados **y** `kitchen_status === 'LISTO'`.
+Se ajustó `ordersByTypeFiltered` para usar ese criterio solo cuando `PlanSummaryService.includes
+('cocina')` es `true`; sin el módulo activo conserva exactamente el criterio original (`!paid`,
+spec 036/059, FR-008), sin cambios.
+
+**Tests afectados (addendum 3)**: `pos-terminal.store.spec.ts::PosTerminalStore.ordersByType`
+-- renombrado el test congelado "un pedido ya pagado desaparece de su pestaña (FR-008, spec
+036)" a "...-- sin módulo de Cocina activo" (aclara el alcance, sin cambiar su aserción) y
+añadido el bloque `describe('con el módulo de Cocina activo', ...)` con 4 casos nuevos: pagado
+sin `kitchen_status` (visible), pagado en `SIN_PREPARAR`/`EN_PROGRESO` (visible), sin pagar con
+`kitchen_status='LISTO'` (visible, el criterio de pago manda), pagado y `LISTO` (desaparece).
+`pos-tables-panel.component.spec.ts` en verde sin cambios (no dependía del criterio interno de
+`ordersByTypeFiltered`).
+
+**Estado (2026-11-12)**: implementado el addendum 3. `pos-terminal.store.spec.ts` (259 tests,
+1 fallo preexistente no relacionado, confirmado reproducible en `develop` limpio antes de esta
+spec -- `saveOrder() con dos líneas hermanas...`, bleed cruzado entre tests ya conocido) y
+`pos-tables-panel.component.spec.ts` (13 tests) en verde. Pendiente: validación manual
+end-to-end de `quickstart.md` (T022/T025), cubriendo también que un pedido TAKEAWAY/DELIVERY
+pagado siga visible en su pestaña hasta que la cocina lo marque listo.
+
+**Addendum 4 (2026-11-12) — hallazgo reportado por el usuario con capturas**: tras el Addendum 3,
+el usuario mostró pedidos "Para llevar" con `Estado de orden: ENTREGADA` y `Estado de pago:
+PAGADO` que seguían visibles en su pestaña, mostrando además `Cocina: SIN PREPARAR` -- pese a que
+ya los había movido a la columna "LISTO" del tablero. Como `kitchen.change_kitchen_status`
+rechaza mover una orden con `status in ('cancelada', 'entregada')` (409 `ORDER_NOT_ACTIVE`) y el
+tablero de cocina (`list_kitchen_board`) tampoco lista órdenes `'entregada'`
+(`test_pedido_entregado_con_kitchen_status_no_nulo_no_aparece`), un pedido con `status ==
+'entregada'` es, por construcción, un estado terminal en el que `kitchen_status` puede haber
+quedado desactualizado respecto al ciclo real (datos de prueba de iteraciones anteriores de esta
+misma sesión, con reglas que cambiaron varias veces). El criterio de ocultar del Addendum 3
+(`paid && kitchen_status === 'LISTO'`) no cubría ese caso. Se añadió una condición de salida
+adicional, independiente de `kitchen_status`: `paid && status === 'entregada'` también oculta el
+pedido -- entregado es terminal, no debería quedar visible en ninguna combinación de
+`kitchen_status`.
+
+**Tests afectados (addendum 4)**: `pos-terminal.store.spec.ts::PosTerminalStore.ordersByType →
+con el módulo de Cocina activo`, nuevo caso "pagado y ya entregado (status 'entregada'),
+desaparece aunque kitchen_status no sea LISTO".
+
+**Estado (2026-11-12)**: implementado el addendum 4. `pos-terminal.store.spec.ts` (260+13 tests,
+mismo fallo preexistente no relacionado de siempre) y `pos-tables-panel.component.spec.ts` en
+verde. Pendiente: que el usuario confirme en su POS que los pedidos de prueba ya entregados
+desaparecen de la pestaña tras este cambio (puede requerir recargar la página para traer el
+`status` actualizado si el navegador tenía una copia vieja en memoria).
+
+**Addendum 5 (2026-11-12) — candado sin salida detectado por el usuario**: el criterio del
+Addendum 3/4 (ocultar de "Para llevar"/"Domicilios" en cuanto `kitchen_status === 'LISTO'`)
+producía un candado: al desaparecer el pedido de esa pestaña apenas quedaba listo, nadie podía
+volver a seleccionarlo para pulsar "Entregar" (ese botón vive en el panel de detalle, que exige
+tener el pedido seleccionado desde esa misma lista) -- quedaba atascado para siempre en la
+columna "LISTO" del tablero de cocina, pagado y listo pero sin forma de marcarse entregado. Se
+quitó la condición `kitchen_status === 'LISTO'` del criterio de ocultar: ahora, con el módulo de
+Cocina activo, un pedido sin mesa permanece visible y seleccionable durante todo su ciclo de
+cocina (`SIN_PREPARAR`/`EN_PROGRESO`/`LISTO`) y solo desaparece cuando `paid && status ===
+'entregada'` -- el mismo criterio terminal introducido en el Addendum 4, que ya cubría también el
+caso de `kitchen_status` desactualizado.
+
+**Tests afectados (addendum 5)**: `pos-terminal.store.spec.ts::PosTerminalStore.ordersByType →
+con el módulo de Cocina activo` -- el caso "pagado y LISTO en cocina, desaparece de la pestaña"
+se invirtió a "...pero todavía no entregado, sigue visible"; el caso de `status === 'entregada'`
+se amplió a dos variantes (`kitchen_status` en `'LISTO'` y en `'SIN_PREPARAR'`, ambas deben
+desaparecer); nuevo caso "sin pagar, ya entregado no es un estado real, sigue visible"
+(regresión de cordura: `status === 'entregada'` con `paid === false` no debería ocurrir en la
+práctica, pero el filtro no debe ocultar por error un pedido no pagado).
+
+**Estado (2026-11-12)**: implementado el addendum 5. `pos-terminal.store.spec.ts` (261+13 tests,
+mismo fallo preexistente no relacionado de siempre) y `pos-tables-panel.component.spec.ts` en
+verde. Pendiente: que el usuario confirme en su POS que los pedidos de prueba que quedaron
+atascados en "LISTO" ahora son seleccionables desde "Para llevar" para poder entregarlos (puede
+requerir recargar la página).
