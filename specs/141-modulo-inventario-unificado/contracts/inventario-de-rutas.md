@@ -7,20 +7,20 @@ Cada funcionalidad pertenece a **un solo** módulo (FR-002). Esta tabla es el co
 «Prefijo» **debe** llevar la dependencia del módulo de la columna «Módulo»; una ruta nueva bajo ese prefijo sin la dependencia
 hace fallar la prueba. Los conteos son de `develop` a 2026-10-31.
 
-## Módulo `inventario` — 43 rutas
+## Módulo `inventario` — 45 rutas
 
 | Prefijo (`/api/v1…`) | Rutas | Qué cubre | Estado antes | Cambio |
 |---|---:|---|---|---|
 | `/inventory/items…` | 13 | insumos: listar, `low-stock`, `export`, importar (`import`, `import/current`, `import/{job}`, `…/cancel`, `…/errors`), detalle, crear, editar, `adjust`, `movements` | gate `inventario` (router) | — |
 | `/inventory/suppliers…`, `/inventory/items/{id}/suppliers`, `/inventory/suppliers/{id}/items`, `/inventory/supplier-items/{id}` | 8 | **Proveedores** y vínculos insumo-proveedor | gate `inventario` (router) | — (en el **front** sí faltaba la guardia) |
-| `/inventory/purchases…` | **8** | **Compras**: listar, crear, orden, `PUT` ×2, `receive`, `void`, `DELETE` | gate `inventario` **+ `compras`** | **se quita el gate `compras`** |
+| `/inventory/purchases…` | **10** | **Compras**: listar, crear, orden, `PUT` ×2, `receive`, `void`, `DELETE`, **compra sugerida** (`GET .../suggested`, `POST .../suggested/generate`, spec 158) | gate `inventario` **+ `compras`** | **se quita el gate `compras`**; spec 158 agrega 2 rutas nuevas bajo el mismo gate |
 | `/unit-measures…` | 6 | unidades de medida (`GET` ×2, `POST`, `PATCH`, `factor-changes`, `DELETE`) | gate `inventario` (router) | — |
 | `/unit-measure-groups…` | 6 | grupos de unidades (`GET`, `POST`, `…/units`, `PATCH`, `…/base-unit`, `DELETE`) | gate `inventario` (router) | — |
 | `/reports/inventory` | 1 | reporte de inventario (RF-063) | gate `inventario` (ruta) | — |
 | `/reports/profitability` | 1 | rentabilidad (RF-065) | gate `inventario` (ruta) | — |
-| **Total** | **43** | | | |
+| **Total** | **45** | | | |
 
-El router `/inventory` tiene **29** rutas (13 + 8 + 8). Los demás reportes (`/reports/sales`, `/products`, `/top-products`,
+El router `/inventory` tiene **31** rutas (13 + 8 + 10). Los demás reportes (`/reports/sales`, `/products`, `/top-products`,
 `/categories`, `/cashiers`) **no** pertenecen a ningún módulo (ventas): no llevan la dependencia.
 
 ## Módulo `promociones` — 7 rutas
