@@ -6482,3 +6482,36 @@ mismo fallo preexistente no relacionado de siempre) y `pos-tables-panel.componen
 verde. Pendiente: que el usuario confirme en su POS que los pedidos de prueba que quedaron
 atascados en "LISTO" ahora son seleccionables desde "Para llevar" para poder entregarlos (puede
 requerir recargar la página).
+
+---
+
+## Decisión de negocio registrada — spec 162 (gestión de documentos legales), 2026-11-18
+
+**Contexto**: `plan.md` de la spec
+[`162-gestion-documentos-legales`](../162-gestion-documentos-legales/plan.md) (Complexity
+Tracking) y `research.md` (Decisión 7) marcan que FR-016/FR-018 cambian comportamiento
+existente de `POST /cart/sessions`: hoy cualquier tenant puede abrir sesión de mesa por QR
+sin ninguna restricción legal; tras esta spec, un tenant sin ningún
+`tenant_legal_documents` en `estado='publicado'` recibirá `409` en ese endpoint, bloqueando
+la captura de nombre del cliente final hasta que el tenant publique su documento.
+
+**Decisión**: corte inmediato, sin feature flag por tenant ni fecha de corte anunciada — el
+gate entra en vigor para todos los tenants en el momento en que esta spec se despliega.
+
+**Quién/cuándo autoriza**: Deimer Hernandez (propietario del repositorio), 2026-11-18, vía
+`/speckit-implement` de esta spec.
+
+**Por qué esta opción y no las alternativas**: ningún tenant existente tiene hoy un
+`tenant_legal_document` publicado (las tablas nacen vacías, ver `data-model.md`), así que un
+flag por tenant o una fecha de corte comunicada no protegen a nadie que ya esté operando con
+el gate satisfecho — simplemente retrasan el mismo evento. El riesgo real (un tenant real en
+producción, operando hoy sin documento legal, que de pronto no puede abrir mesas por QR) se
+acepta explícitamente como el comportamiento correcto y deseado: es exactamente lo que FR-016
+pide, y la mitigación operativa es que US3 (publicar el propio documento) es parte de la misma
+spec y queda disponible en el mismo despliegue — cualquier tenant puede resolver el bloqueo en
+minutos completando su perfil legal y publicando.
+
+**Trazabilidad**: ver [`spec.md`](../162-gestion-documentos-legales/spec.md) US3 AC5, US4 AC3;
+[`plan.md`](../162-gestion-documentos-legales/plan.md) Complexity Tracking;
+[`research.md`](../162-gestion-documentos-legales/research.md) Decisión 7;
+[`tasks.md`](../162-gestion-documentos-legales/tasks.md) T035.
