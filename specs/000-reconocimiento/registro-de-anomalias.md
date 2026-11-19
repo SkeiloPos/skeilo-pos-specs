@@ -5587,7 +5587,7 @@ III), no en silencio. Characterization test nuevo para el invariante ya existent
 frontend (`pos-heladeria`):
 
 1. **`CustomerOrder.status` pasa de 5 valores a 3**: `'pendiente' | 'abierta' | 'bloqueada' |
-   'pagada' | 'cancelada'` → `'pendiente' | 'entregada' | 'cancelada'`. `'abierta'` se funde en
+'pagada' | 'cancelada'` → `'pendiente' | 'entregada' | 'cancelada'`. `'abierta'` se funde en
    `'pendiente'`; `'bloqueada'` y `'pagada'` se funden en `'entregada'`. La entrega deja de ser una
    acción por ítem (`kitchen_transition`) y pasa a ser una sola acción idempotente por pedido
    completo (`POST /orders/{id}/deliver`), que no toca `payment_status`.
@@ -5596,7 +5596,7 @@ frontend (`pos-heladeria`):
    completamente independiente de `status` (cobrar nunca cambia `status`; entregar nunca cambia
    `payment_status`).
 3. **`OrderItem.estado_cocina` pasa de 4 valores a 3**: `'pendiente' | 'en_preparacion' | 'listo' |
-   'anulado'` → `'pendiente' | 'entregado' | 'cancelado'`. Ya no tiene acción propia: sigue siempre
+'anulado'` → `'pendiente' | 'entregado' | 'cancelado'`. Ya no tiene acción propia: sigue siempre
    el estado del pedido, salvo un ítem agregado después de que el pedido ya está `'entregada'`
    (nace `'pendiente'` hasta la siguiente acción "Entregar").
 4. **Liberación de mesa** (`release_paid_session`) deja de evaluar "¿hay algo por cobrar?" y pasa a
@@ -5660,7 +5660,7 @@ SC-007 (ningún registro fuera del conjunto final de estados tras la migración)
 
 1. **Los caminos de inventario que hoy responden 400 pasan a responder 409**, con el mismo
    cuerpo unificado `{error, productos_agotados, agotados[{id, tipo, nombre, producto_id,
-   motivo}], …claves heredadas}` que ya usa el 409 por marca manual. Los 409 que ya existían
+motivo}], …claves heredadas}` que ya usa el 409 por marca manual. Los 409 que ya existían
    por inventario (adiciones y toppings «Stock insuficiente», carrito QR) **conservan** sus
    claves heredadas (`insumo`, `disponible`, `requerido`, `contexto`) pero su texto `error`
    cambia al formato de FR-024 de la spec 148 («Se agotó: X. Quítalo para continuar» / «Se
@@ -5958,7 +5958,7 @@ estado real de cocina, es la causa raíz del bug reportado por el usuario.
 **Por qué cambia**: autorizado por `specs/153-cobro-previo-cocina-qr/spec.md` (Clarifications de
 la sesión 2026-11-05, FR-001 a FR-004) y `plan.md`/`research.md` de la misma spec: cuando se
 introdujo el módulo de Cocina (specs 149-151), el camino de cobro de sesión de mesa nunca se
-actualizó para distinguir tenants con el módulo activo — siguió aplicando la regla *pre-cocina*
+actualizó para distinguir tenants con el módulo activo — siguió aplicando la regla _pre-cocina_
 ("todo debe entregarse antes de cobrar") sin excepción, y ningún flujo de pago de mesa quedó
 conectado al estado de cocina.
 
@@ -6012,6 +6012,7 @@ backend+frontend corriendo en local.
 ---
 
 ### A-156 — `paid` queda `False` para cualquier pedido cobrado junto con otro(s) (unificado de
+
 2+, o split), y `onCharged()` tenía una carrera que rechazaba el refresco tras un cobro
 independiente (spec 156)
 
@@ -6082,6 +6083,7 @@ preexistentes, sin nuevos) en verde.
 ---
 
 ### A-157 — Mesa liberada (`'closed'`) sigue mostrando sus pedidos ya pagados si se cobraron
+
 juntos en una venta unificada (`list_orders`, spec 156)
 
 **Descripción**: mismo defecto de fondo que A-156, en un punto distinto del código. `GET
@@ -6129,6 +6131,7 @@ sale como si tuviera pedidos"), investigado y corregido el 2026-11-10.
 ---
 
 ### A-158 — Elegir la pestaña de un pedido ya pagado lo dejaba seleccionado para cobrar,
+
 disparando "Algunos pedidos seleccionados no se pueden cobrar." (spec 156)
 
 **Descripción**: `selectChargeOrderOnly(orderId)` (`pos-terminal.store.ts`, llamada desde
@@ -6161,6 +6164,7 @@ base de 7 fallos preexistentes, sin nuevos) en verde.
 ---
 
 ### A-159 — Un refresco de fondo (sondeo o evento de tiempo real de otra mesa) borraba la
+
 selección de cobro de un pedido específico, cobrando toda la mesa en su lugar (spec 153/156)
 
 **Descripción**: `chargeableOrderIds` (`pos-terminal.store.ts`) es un `computed()` derivado en
@@ -6242,7 +6246,7 @@ cocina en un tenant con el módulo de plan "cocina" activo:
   mostrar el botón sin pagar; para pedidos de mesa, o cualquier otra modalidad, conserva la
   exigencia de pago. Con esto, el botón queda oculto exactamente cuando
   `order_type ∈ {TAKEAWAY, DELIVERY} AND módulo Cocina activo AND
-  qr_payment_instruction_mode == 'PAY_BEFORE_RECEIVING' AND payment_status == 'UNPAID'` (FR-002).
+qr_payment_instruction_mode == 'PAY_BEFORE_RECEIVING' AND payment_status == 'UNPAID'` (FR-002).
 
 **Por qué cambia**: autorizado por `specs/157-cocina-pedidos-llevar-domicilio/spec.md`
 (Clarifications, 2026-11-11) y `plan.md`/`research.md` (Decisiones 1, 2 y 5) de la misma spec:
@@ -6564,3 +6568,36 @@ vencimiento son información de cobro que no debe ver un cajero, un mesero ni el
 **Quién y cuándo**: decisión del usuario, 2026-11-17. **Estado (2026-11-17)**: implementado y probado
 (`notification_events.audience_role`, canal en tiempo real `staff:<rol>`, filtro del push, del listado y de
 «atender»; `test_notifications_audience.py`). Los eventos anteriores no cambian (`audience_role` NULL).
+
+---
+
+## Decisión de negocio registrada — spec 162 (gestión de documentos legales), 2026-11-18
+
+**Contexto**: `plan.md` de la spec
+[`162-gestion-documentos-legales`](../162-gestion-documentos-legales/plan.md) (Complexity
+Tracking) y `research.md` (Decisión 7) marcan que FR-016/FR-018 cambian comportamiento
+existente de `POST /cart/sessions`: hoy cualquier tenant puede abrir sesión de mesa por QR
+sin ninguna restricción legal; tras esta spec, un tenant sin ningún
+`tenant_legal_documents` en `estado='publicado'` recibirá `409` en ese endpoint, bloqueando
+la captura de nombre del cliente final hasta que el tenant publique su documento.
+
+**Decisión**: corte inmediato, sin feature flag por tenant ni fecha de corte anunciada — el
+gate entra en vigor para todos los tenants en el momento en que esta spec se despliega.
+
+**Quién/cuándo autoriza**: Deimer Hernandez (propietario del repositorio), 2026-11-18, vía
+`/speckit-implement` de esta spec.
+
+**Por qué esta opción y no las alternativas**: ningún tenant existente tiene hoy un
+`tenant_legal_document` publicado (las tablas nacen vacías, ver `data-model.md`), así que un
+flag por tenant o una fecha de corte comunicada no protegen a nadie que ya esté operando con
+el gate satisfecho — simplemente retrasan el mismo evento. El riesgo real (un tenant real en
+producción, operando hoy sin documento legal, que de pronto no puede abrir mesas por QR) se
+acepta explícitamente como el comportamiento correcto y deseado: es exactamente lo que FR-016
+pide, y la mitigación operativa es que US3 (publicar el propio documento) es parte de la misma
+spec y queda disponible en el mismo despliegue — cualquier tenant puede resolver el bloqueo en
+minutos completando su perfil legal y publicando.
+
+**Trazabilidad**: ver [`spec.md`](../162-gestion-documentos-legales/spec.md) US3 AC5, US4 AC3;
+[`plan.md`](../162-gestion-documentos-legales/plan.md) Complexity Tracking;
+[`research.md`](../162-gestion-documentos-legales/research.md) Decisión 7;
+[`tasks.md`](../162-gestion-documentos-legales/tasks.md) T035.
