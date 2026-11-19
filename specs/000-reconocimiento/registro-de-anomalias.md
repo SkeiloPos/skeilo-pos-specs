@@ -6482,3 +6482,85 @@ mismo fallo preexistente no relacionado de siempre) y `pos-tables-panel.componen
 verde. Pendiente: que el usuario confirme en su POS que los pedidos de prueba que quedaron
 atascados en "LISTO" ahora son seleccionables desde "Para llevar" para poder entregarlos (puede
 requerir recargar la página).
+
+### A-161 — [DECISIÓN DE NEGOCIO — spec 161] Período de gracia de 5 días antes del bloqueo por plan vencido
+
+**Qué cambia**: `ensure_plan_not_expired` (`pos-backend/app/core/plan_limits.py`, spec 033 FR-019/FR-020)
+hoy bloquea **desde el instante** en que `tenant.plan_vence_en < ahora`: `enforce_plan_limit` (mesas,
+cajas, usuarios, productos, métodos de pago) y `ensure_module_access`/`require_module_access`
+(inventario, promociones, cocina) responden `403 «Tu plan venció…»`. Pasa a bloquear solo cuando el
+estado derivado de la suscripción es `bloqueada`, es decir, cuando `ahora ≥ plan_vence_en + 120 h`. Entre
+`plan_vence_en` y `plan_vence_en + 120 h` el tenant está `en_gracia` y **todo opera con normalidad**.
+Los tramos son exactos en UTC (`por_vencer` desde 48 h antes del vencimiento; `en_gracia` hasta las 120 h),
+calculados por una función pura nueva `compute_subscription_status` (`pos-backend/app/core/subscription.py`).
+Un `plan_vence_en` `NULL` sigue significando «nunca vence» (spec 033 FR-021). Afecta a las pruebas de
+expiración de spec 033 y a la prueba de plan vencido de invitaciones (`test_invitations_create.py`,
+FR-018), que usaban `−1 día` como «vencido».
+
+**Por qué cambia**: autorizado por `specs/161-suscripcion-pago-wompi/spec.md` (RN-4, FR-001, FR-005) y su
+sesión de clarificación del 2026-11-17: el negocio quiere darle al tenant 5 días para pagar antes de
+cortarle el servicio, en vez del bloqueo inmediato.
+
+**Quién y cuándo**: decisión del usuario durante la especificación de la spec 161, 2026-11-17, registrada
+antes de implementar (Principio II). Los números (48 h y 120 h exactas, no días calendario) son la decisión D6
+de esa misma sesión.
+
+**Estado (2026-11-17)**: implementado y probado (`app/core/subscription.py`, `ensure_plan_not_expired`; `test_subscription_state.py`, `test_plan_expiration.py`). La prueba de plan vencido de invitaciones pasó de `−1 día` a `−6 días` por este cambio.
+
+### A-162 — [DECISIÓN DE NEGOCIO — spec 161] Bloqueo total de toda operación del tenant con `subscription_blocked`
+
+**Qué cambia**: hoy un plan vencido solo bloquea la creación de recursos limitados y los módulos
+gobernados por plan; ventas, órdenes, caja, catálogo, reportes y el menú QR **no** se bloquean. Pasa a
+haber un guard global (`pos-backend/app/core/subscription_guard.py`) invocado desde `get_tenant` y
+`resolve_tenant_by_id` (`app/core/db.py`) que, con el tenant `bloqueada`, rechaza **toda** operación —
+también la del comensal que usa el menú y el carrito públicos por QR — con `403` y el cuerpo
+`{"detail": …, "code": "subscription_blocked"}`. Siguen disponibles: `/auth/*`, `/bootstrap`, `/plan`
+(incluye `/plan/subscription/*`), `/notifications` y `/realtime` del staff; las rutas sin tenant
+(`/super-admin`, `/health`, `/webhooks`) nunca se bloquean. El inicio de sesión nunca se bloquea.
+
+**Por qué cambia**: autorizado por spec 161 (RN-5, FR-006 a FR-010 y decisión D1): un tenant que no paga
+tras la gracia debe quedar sin servicio completo, no solo sin algunos módulos.
+
+**Quién y cuándo**: decisión del usuario, 2026-11-17. **Estado (2026-11-17)**: implementado y probado
+(`subscription_guard.py`, invocado desde `get_tenant` y `resolve_tenant_by_id`; `test_subscription_guard.py` y el
+inventario de rutas `test_subscription_route_inventory.py`). **No activar en producción sin llaves de Wompi**
+(plan, riesgo R1): sin ellas un tenant que venza queda bloqueado sin poder pagar por sí mismo.
+Al integrar con la spec 162 (2026-11-19) se agregó una exención: `/legal/platform-acceptance` (aceptación de los documentos legales de la plataforma por el ADMIN) sigue disponible con el tenant bloqueado; el resto de `/legal` sí se bloquea. Decisión del asistente, pendiente de confirmación del usuario.
+
+### A-163 — [DECISIÓN DERIVADA — spec 161, pendiente de confirmación] `vencido` de `GET /plan` pasa a significar «bloqueada»
+
+**Qué cambia**: `PlanSummaryResponse.vencido` (`pos-backend/app/api/v1/plan/schemas.py`,
+`service.py::build_plan_summary`) deja de ser `plan_vence_en < ahora` y pasa a ser
+`subscription_state == "bloqueada"`. El campo conserva nombre y tipo. Se agregan, aditivos,
+`subscription_state`, `dias_restantes` y `fecha_limite_pago`. El frontend lee `vencido` para ocultar
+módulos y como guard de navegación (`plan-module.guard.ts`, `tenant-sidebar.component.ts`,
+`reports.service.ts`, `option-groups-page.component.ts`, `plan-summary.service.ts`), por lo que **no
+requiere cambios** para respetar la gracia.
+
+**Por qué cambia**: si `vencido` siguiera siendo «pasó `plan_vence_en`», la gracia de 5 días (A-161) quedaría
+anulada en la interfaz aunque el backend la permitiera. Se deriva de la regla «durante la gracia todos
+los módulos siguen operando con normalidad» (spec 161, RN-4 / FR-005).
+
+**Quién y cuándo**: **derivada por el asistente** de la decisión de gracia durante la planificación de la spec
+161 (`research.md` Decisión 6), 2026-11-17, y marcada en la spec como supuesto «a confirmar en revisión».
+El usuario aún no la ha confirmado de forma expresa; si la rechaza, hay que revertir `vencido` a su
+significado anterior y decidir cómo exponer la gracia al frontend.
+
+**Estado (2026-11-17)**: implementado y probado (`GET /plan`; `test_plan_summary.py`). **Sigue pendiente de confirmación expresa del usuario.** Si la rechaza hay que revertir `vencido` a su significado anterior y decidir cómo exponer la gracia al frontend.
+
+### A-164 — [DECISIÓN DE NEGOCIO — spec 161] Audiencia por rol en las notificaciones del tenant
+
+**Qué cambia**: `notification_events` (esquema `tenant`, spec 077) gana una columna opcional
+`audience_role`; `NULL` significa «todo el personal», que es el comportamiento de todos los eventos
+existentes (`order.created`, `payment.completed`), sin cambios ni backfill. Con audiencia, el evento solo lo
+ven los usuarios de ese rol en `GET /notifications` (listado, recuperación y `attend`), en el canal en
+tiempo real (canal `staff:<rol>`) y en el push del navegador. Los tres avisos de suscripción
+(`subscription.expiring`, `subscription.grace_started`, `subscription.blocked`) se dirigen solo al rol
+`ADMIN`.
+
+**Por qué cambia**: autorizado por spec 161 (FR-028, FR-031, SC-009 y decisión D2): las alertas de
+vencimiento son información de cobro que no debe ver un cajero, un mesero ni el personal de cocina.
+
+**Quién y cuándo**: decisión del usuario, 2026-11-17. **Estado (2026-11-17)**: implementado y probado
+(`notification_events.audience_role`, canal en tiempo real `staff:<rol>`, filtro del push, del listado y de
+«atender»; `test_notifications_audience.py`). Los eventos anteriores no cambian (`audience_role` NULL).
