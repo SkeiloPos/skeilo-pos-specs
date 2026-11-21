@@ -17,6 +17,10 @@
 - Q: When a tenant admin sees the "template update pending" notice (FR-015) because the super admin published a newer master template version, where should that notice appear? → A: A persistent in-panel banner in the tenant's legal-documents section, plus an email sent to the tenant's contact address when the new template version is published.
 - Q: For the public endpoint serving current legal documents (FR-005), roughly what request volume should it sustain per client, to size the rate limit? → A: Defer the exact numeric threshold to the planning phase; the spec only requires a reasonable rate limit that prevents abuse without affecting normal landing/menu traffic.
 
+### Session 2026-11-19
+
+- Q: ¿Es obligatorio que el tenant ingrese la identificación legal (NIT/RUT) para poder generar y publicar su documento legal? → A: No. Por ahora la identificación legal (NIT/RUT) es opcional: el tenant puede generar y publicar su documento aunque no la haya ingresado, y cuando el dato no está presente, la línea correspondiente se omite del texto renderizado en vez de mostrarse vacía o con un marcador sin rellenar.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Super admin publica y versiona los documentos legales de la plataforma (Priority: P1)
@@ -57,7 +61,7 @@ El super admin redacta y versiona una plantilla legal maestra que usan todos los
 
 ### User Story 3 - Tenant completa sus datos y publica su propio documento legal (Priority: P1)
 
-El administrador del tenant completa en el panel sus datos legales (razón social, identificación legal, dirección, ciudad, contacto, días de retención). El sistema exige todos los datos antes de permitir generar el documento, y muestra una vista previa del texto resultante antes de publicar. Al publicar, se guarda una copia fija (snapshot) del texto ya combinado con los datos del tenant, junto con la versión de plantilla usada y una huella de verificación del contenido. Esa copia fija es lo que verán los clientes finales, nunca una versión recalculada en el momento.
+El administrador del tenant completa en el panel sus datos legales (razón social, identificación legal, dirección, ciudad, contacto, días de retención). El sistema exige los datos obligatorios antes de permitir generar el documento; la identificación legal (NIT/RUT) es, por ahora, el único dato opcional de este perfil, y el sistema muestra una vista previa del texto resultante antes de publicar. Al publicar, se guarda una copia fija (snapshot) del texto ya combinado con los datos del tenant, junto con la versión de plantilla usada y una huella de verificación del contenido. Esa copia fija es lo que verán los clientes finales, nunca una versión recalculada en el momento.
 
 **Why this priority**: Sin un documento propio publicado, el tenant no tiene base legal para capturar datos de clientes en el menú QR; es el requisito habilitante del flujo de consentimiento (User Story 4).
 
@@ -65,11 +69,12 @@ El administrador del tenant completa en el panel sus datos legales (razón socia
 
 **Acceptance Scenarios**:
 
-1. **Given** el tenant no ha completado todos los datos legales obligatorios, **When** intenta generar o publicar su documento, **Then** el sistema lo impide y señala los datos faltantes.
-2. **Given** el tenant completó todos los datos obligatorios, **When** solicita la vista previa, **Then** el sistema muestra el texto final con los datos ya sustituidos en la plantilla, sin guardar todavía nada como definitivo.
-3. **Given** el tenant aprueba la vista previa, **When** publica el documento, **Then** el sistema guarda un snapshot inmutable con el texto renderizado, la versión de plantilla usada, una huella de verificación del contenido y la fecha de publicación.
-4. **Given** el tenant tiene un documento publicado basado en la versión N de la plantilla, **When** el super admin publica la versión N+1 de la plantilla, **Then** el tenant ve un banner persistente en la sección de documentos legales del panel y recibe un correo a su dirección de contacto avisando que hay una actualización de plantilla pendiente de revisión, pero su documento publicado sigue siendo el mismo hasta que decida generar y publicar uno nuevo.
-5. **Given** un tenant no tiene ningún documento legal publicado, **When** intenta activar la captura de nombre en el menú QR, **Then** el sistema no permite activar esa función hasta que exista un documento publicado.
+1. **Given** el tenant no ha completado todos los datos legales obligatorios (distintos de la identificación legal), **When** intenta generar o publicar su documento, **Then** el sistema lo impide y señala los datos faltantes.
+2. **Given** el tenant completó todos los datos obligatorios pero dejó vacía la identificación legal (NIT/RUT), **When** solicita la vista previa o publica el documento, **Then** el sistema lo permite sin exigir ese dato, y el texto renderizado omite por completo la línea de identificación legal (no muestra el campo vacío ni un marcador sin rellenar).
+3. **Given** el tenant completó todos los datos obligatorios, **When** solicita la vista previa, **Then** el sistema muestra el texto final con los datos ya sustituidos en la plantilla, sin guardar todavía nada como definitivo.
+4. **Given** el tenant aprueba la vista previa, **When** publica el documento, **Then** el sistema guarda un snapshot inmutable con el texto renderizado, la versión de plantilla usada, una huella de verificación del contenido y la fecha de publicación.
+5. **Given** el tenant tiene un documento publicado basado en la versión N de la plantilla, **When** el super admin publica la versión N+1 de la plantilla, **Then** el tenant ve un banner persistente en la sección de documentos legales del panel y recibe un correo a su dirección de contacto avisando que hay una actualización de plantilla pendiente de revisión, pero su documento publicado sigue siendo el mismo hasta que decida generar y publicar uno nuevo.
+6. **Given** un tenant no tiene ningún documento legal publicado, **When** intenta activar la captura de nombre en el menú QR, **Then** el sistema no permite activar esa función hasta que exista un documento publicado.
 
 ---
 
@@ -97,6 +102,7 @@ Antes de pedirle el nombre, el menú QR de un tenant con documento legal publica
 - ¿Qué pasa si el super admin despublica o elimina el acceso de un tenant mientras existen aceptaciones de clientes ya registradas sobre su documento? Las aceptaciones y los snapshots ya guardados deben permanecer intactos y consultables como evidencia histórica.
 - ¿Qué pasa si se intenta consultar el documento vigente de la plataforma desde un dominio distinto al de la landing autorizada? La solicitud debe ser rechazada por la política de acceso entre dominios.
 - ¿Qué pasa si un cliente final cierra el menú QR justo después de ver el aviso pero antes de continuar? No debe registrarse ninguna aceptación; solo se registra evidencia cuando el cliente efectivamente continúa el flujo.
+- ¿Qué pasa si el tenant publica su documento sin identificación legal (NIT/RUT) y más adelante la agrega? El documento ya publicado no cambia automáticamente; el tenant debe generar y publicar una nueva versión para que la identificación legal aparezca en el texto que ven los clientes.
 
 ## Requirements *(mandatory)*
 
@@ -113,7 +119,8 @@ Antes de pedirle el nombre, el menú QR de un tenant con documento legal publica
 - **FR-009**: El sistema MUST validar, al guardar la plantilla maestra, que no contenga variables fuera de la lista cerrada permitida, y MUST rechazar el guardado señalando explícitamente cuáles variables no son válidas si las encuentra.
 - **FR-010**: El sistema MUST versionar la plantilla maestra de forma que publicar una nueva versión no modifique ni invalide los documentos de tenant ya publicados ni las aceptaciones de clientes ya registradas sobre versiones anteriores.
 - **FR-011**: El sistema MUST generar el texto final de cada documento de tenant mediante sustitución literal de texto de las variables permitidas sobre la plantilla, sin evaluar código ni expresiones, y MUST escapar el contenido sustituido para evitar que se interprete como marcado o código ejecutable.
-- **FR-012**: El sistema MUST permitir que un administrador del tenant complete su perfil legal (razón social, identificación legal, dirección legal, ciudad, correo de contacto, teléfono de contacto), y MUST exigir que todos estos datos estén completos antes de permitir generar o publicar su documento legal.
+- **FR-012**: El sistema MUST permitir que un administrador del tenant complete su perfil legal (razón social, identificación legal, dirección legal, ciudad, correo de contacto, teléfono de contacto), y MUST exigir que todos estos datos estén completos antes de permitir generar o publicar su documento legal, EXCEPTO la identificación legal (NIT/RUT), que por ahora es opcional y no bloquea la generación ni la publicación del documento.
+- **FR-012a**: El sistema MUST, al renderizar el documento del tenant (vista previa y snapshot publicado), omitir por completo la línea o sección correspondiente a la identificación legal cuando el tenant no la haya ingresado, en vez de mostrarla vacía o con un marcador sin rellenar.
 - **FR-013**: El sistema MUST ofrecer una vista previa del documento renderizado con los datos del tenant antes de que este decida publicarlo.
 - **FR-014**: El sistema MUST, al publicar un documento de tenant, guardar un snapshot inmutable que incluya el texto ya renderizado, la versión de plantilla utilizada, una huella de verificación del contenido y la fecha de publicación; el contenido mostrado a los clientes finales MUST provenir siempre de ese snapshot y nunca de una re-renderización posterior.
 - **FR-015**: El sistema MUST notificar al tenant cuando exista una versión más reciente de la plantilla maestra que la usada en su documento publicado, mediante un aviso persistente (banner) en la sección de documentos legales del panel del tenant y un correo electrónico a la dirección de contacto del tenant en el momento en que se publica la nueva versión de la plantilla, sin regenerar ni republicar automáticamente el documento del tenant.
@@ -152,3 +159,4 @@ Antes de pedirle el nombre, el menú QR de un tenant con documento legal publica
 - La huella no reversible de la dirección IP se calcula de forma que no permita recuperar la IP original, pero sí permita comparar si dos aceptaciones provienen de la misma dirección si fuera necesario para una investigación.
 - La revisión legal del contenido de la primera versión de los documentos de plataforma y de la plantilla maestra por parte de un abogado es un paso de proceso previo a la publicación en producción, y no una validación que el sistema deba imponer automáticamente.
 - Quedan fuera de alcance de esta funcionalidad: la edición del texto de la plantilla por parte del tenant (solo puede rellenar variables), soporte multi-idioma, firma electrónica, y el ejercicio de derechos de acceso/rectificación/supresión de datos personales (se tratará en una funcionalidad separada).
+- La identificación legal (NIT/RUT) del tenant es, por decisión de negocio actual, el único dato del perfil legal que no es obligatorio para generar o publicar el documento; esta decisión puede revisarse más adelante si surgen requisitos de cumplimiento que la exijan.

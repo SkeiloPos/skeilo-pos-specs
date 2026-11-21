@@ -119,10 +119,12 @@ valor.
 | `telefono_contacto` | `String(30)` | Nullable |
 | `updated_at` | `DateTime` | `onupdate=func.now()` |
 
-**Regla (FR-012)**: "completo" = los 6 campos de negocio no son `NULL`/cadena vacía;
-validado en el servicio antes de permitir vista previa o publicación (tabla 5), no por
-`NOT NULL` de columna (el tenant puede guardar parcialmente mientras completa el
-formulario).
+**Regla (FR-012)**: "completo" = los 5 campos obligatorios (`razon_social`,
+`direccion_legal`, `ciudad`, `correo_contacto`, `telefono_contacto`) no son `NULL`/cadena
+vacía; validado en el servicio antes de permitir vista previa o publicación (tabla 5), no
+por `NOT NULL` de columna (el tenant puede guardar parcialmente mientras completa el
+formulario). `identificacion_legal` queda explícitamente fuera de esta validación (FR-012a):
+puede quedar `NULL`/vacío sin bloquear vista previa ni publicación.
 
 ### 5. `TenantLegalDocument` (`tenant.tenant_legal_documents`)
 

@@ -197,6 +197,30 @@ ya prueba que llamar `send_email()` directamente desde el servicio de negocio, s
 por `dispatch.py`, es el patrón establecido para emails transaccionales puntuales como
 este.
 
+## Decisión 11: Variable opcional (`identificacion_legal`) que se omite por línea
+
+**Decisión**: Se añade a la lista cerrada de variables un atributo `required: bool` por
+variable (hoy solo `identificacion_legal` es `required=False`; las demás permanecen
+`True`). `substitute_variables` (research.md Decisión 3) hace una primera pasada línea por
+línea sobre `contenido_markdown`: cualquier línea que contenga `{{identificacion_legal}}`
+se elimina por completo si el valor del perfil es `NULL`/cadena vacía, antes de aplicar la
+sustitución regex normal al resto. Esto asume que el super admin redacta la plantilla
+maestra colocando `{{identificacion_legal}}` en su propia línea (p. ej. `NIT/RUT:
+{{identificacion_legal}}`), igual que ya hace con el resto de variables.
+
+**Rationale**: FR-012a exige que la ausencia del dato no deje un hueco visible ("NIT/RUT:
+" vacío) ni un marcador sin rellenar. Eliminar la línea completa es la única opción que
+cumple eso sin introducir condicionales (`{% if %}`) en el texto de la plantilla, lo cual
+violaría la Decisión 3 (sin motor de plantillas evaluable, FR-011). No se valida en el
+guardado de la plantilla que cada variable opcional esté en su propia línea — queda como
+convención documentada para el super admin al redactar, no como una regla que el sistema
+imponga.
+
+**Alternativas consideradas**: Sustituir por cadena vacía — rechazado, viola FR-012a
+explícitamente (deja la etiqueta "NIT/RUT:" sin valor). Exigir que el super admin use una
+sintaxis condicional en la plantilla — rechazado, reabre la superficie de inyección que la
+Decisión 3 cerró deliberadamente.
+
 ## Resumen de incógnitas → resueltas
 
 | Incógnita (Contexto Técnico) | Resuelta en |
@@ -210,3 +234,4 @@ este.
 | Cómo llega el enlace del documento del tenant al menú QR | Decisión 8 |
 | Endpoint público + rate limit + CORS de plataforma | Decisión 9 |
 | Canal de email de aviso de plantilla pendiente | Decisión 10 |
+| Cómo omitir la identificación legal cuando el tenant no la ingresa | Decisión 11 |
