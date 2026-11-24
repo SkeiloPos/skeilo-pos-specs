@@ -6601,3 +6601,33 @@ minutos completando su perfil legal y publicando.
 [`plan.md`](../162-gestion-documentos-legales/plan.md) Complexity Tracking;
 [`research.md`](../162-gestion-documentos-legales/research.md) Decisión 7;
 [`tasks.md`](../162-gestion-documentos-legales/tasks.md) T035.
+
+---
+
+### A-165 — [DECISIÓN DE NEGOCIO — spec 165] Stock y ajustes de la importación masiva de Excel no generaban movimiento de kardex
+
+**Qué cambia**: la importación masiva de Excel de inventario (specs 109/139/142) sobrescribía `current_stock`
+directamente al crear o actualizar un insumo, sin pasar nunca por `record_movement`/`apply_adjustment`
+(spec 005) — el único mecanismo documentado como legítimo para mutar stock. Tras la spec 165: (1) el stock
+inicial de un insumo **creado** por Excel genera un movimiento `in`, motivo nuevo `importacion_masiva`,
+referenciado al job de importación; (2) al **actualizar** un insumo existente, la diferencia entre el valor
+de Stock del Excel y el stock actual genera un ajuste (`apply_adjustment`) con el mismo motivo y referencia,
+y si esa diferencia es cero no se genera ningún movimiento; (3) la columna Costo **no cambia**: sigue
+sobrescribiendo `unit_cost` directo, tal como ya documentaban las specs 139/142, porque el costo es un
+atributo del insumo, no una cantidad de movimiento.
+
+**Por qué cambia**: el hallazgo surgió del análisis de falencias de inventario
+(`analisis-falencias-inventario.md`, sección 2.10), que identificó que ningún spec de Excel menciona el
+kardex. Rompía la garantía central de la spec 005 de que todo cambio de stock queda registrado y es
+auditable: reimportar un Excel desactualizado podía pisar el stock real sin dejar rastro, generando
+descuadres irrastreables entre "stock según kardex" y "stock según el último Excel subido".
+
+**Quién y cuándo**: decisión del usuario (Deimer Hernandez, propietario del repositorio), 2026-11-24, en
+conversación con el asistente a partir del análisis de falencias de inventario. Se decidió explícitamente
+entre tres alternativas para el stock en actualización (ignorar la columna, sobrescribir directo sin kardex,
+o generar un ajuste por la diferencia) y se eligió generar el ajuste; y entre reutilizar el motivo `ajuste`
+existente o crear uno nuevo (`importacion_masiva`), eligiendo el motivo nuevo para distinguir en reportes
+el origen de estos movimientos.
+
+**Estado (2026-11-24)**: spec redactada (`165-trazabilidad-kardex-importacion-excel-inventario`), pendiente
+de planificación e implementación en `pos-backend` (este repo es solo de especificaciones).
